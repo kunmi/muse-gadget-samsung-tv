@@ -1,0 +1,176 @@
+/*
+ * Muse Gadget TV — TV-first styling: 1920x1080 canvas, big type, high
+ * contrast, visible focus. Original design for this project; no SDK assets.
+ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #0b1020;
+  color: #f2f4f8;
+  font-family: "Samsung One", "Segoe UI", Arial, sans-serif;
+}
+
+.hidden { display: none !important; }
+.mono { font-family: "Consolas", "Menlo", monospace; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  padding: 64px 96px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- focused element (remote navigation) ---------- */
+button, input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  background: #1c2742;
+  border: 3px solid #33436b;
+  border-radius: 14px;
+  padding: 16px 32px;
+  font-size: 30px;
+  cursor: pointer;
+}
+button.focused {
+  border-color: #ffb454;
+  outline: 4px solid #ffb454;
+  outline-offset: 2px;
+  background: #27355a;
+}
+input {
+  background: #0e1528;
+  border: 3px solid #33436b;
+  border-radius: 14px;
+  padding: 16px 24px;
+  font-size: 30px;
+  width: 100%;
+}
+input.focused {
+  border-color: #ffb454;
+  outline: 4px solid #ffb454;
+  outline-offset: 2px;
+}
+
+/* ---------- ambient screen ---------- */
+.ambient-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.wordmark {
+  font-size: 54px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.wordmark-thin { font-weight: 300; color: #9fb2d8; }
+
+.status-pill {
+  font-size: 28px;
+  padding: 12px 28px;
+  border-radius: 999px;
+  border: 2px solid #33436b;
+  background: #141d36;
+}
+.status-ok { border-color: #2e7d4f; background: #123324; color: #9fe8bb; }
+.status-warn { border-color: #a8741a; background: #38270a; color: #ffd9a0; }
+.status-idle { color: #9fb2d8; }
+
+.ambient-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+.clock {
+  font-size: 190px;
+  font-weight: 200;
+  line-height: 1;
+}
+.dateline {
+  font-size: 44px;
+  color: #9fb2d8;
+  margin-top: 12px;
+}
+.ambient-hint {
+  font-size: 32px;
+  color: #5f719c;
+  margin-top: 40px;
+  max-width: 1100px;
+}
+
+.ambient-footer { display: flex; flex-direction: column; gap: 20px; }
+.composer { display: flex; gap: 20px; }
+.composer input { flex: 1; }
+.footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.identity-line { font-size: 26px; color: #5f719c; }
+.toast { font-size: 28px; color: #ffd9a0; min-height: 36px; }
+
+/* ---------- setup screen ---------- */
+#screen-setup { overflow: hidden; }
+.setup-title { font-size: 56px; margin: 0 0 12px; }
+.setup-lede { font-size: 30px; color: #c6d2ec; max-width: 1500px; margin: 0 0 36px; line-height: 1.45; }
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.setup-card {
+  background: #111a30;
+  border: 2px solid #26355c;
+  border-radius: 18px;
+  padding: 28px 32px;
+}
+.setup-card.wide { grid-column: 1 / -1; }
+.setup-card h2 { font-size: 34px; margin: 0 0 14px; color: #ffb454; }
+.setup-card p { font-size: 26px; line-height: 1.5; color: #c6d2ec; margin: 0 0 16px; }
+.setup-card input { margin-bottom: 16px; }
+.row { display: flex; align-items: center; gap: 20px; }
+.field-state { font-size: 26px; color: #9fe8bb; }
+.field-state.error { color: #ff9d9d; }
+.field-label { display: block; font-size: 24px; color: #9fb2d8; margin: 10px 0 6px; }
+.identity-list { display: grid; grid-template-columns: 260px 1fr; font-size: 28px; row-gap: 10px; margin: 0 0 16px; }
+.identity-list dt { color: #9fb2d8; }
+.identity-list dd { margin: 0; }
+.pairing-state { font-size: 26px; color: #ffd9a0; }
+.setup-footer { margin-top: 28px; }
+.setup-note { font-size: 24px; color: #5f719c; max-width: 1300px; line-height: 1.4; }
+
+/* ---------- display card overlay ---------- */
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 7, 16, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card {
+  background: #141d36;
+  border: 3px solid #33436b;
+  border-radius: 24px;
+  max-width: 1300px;
+  max-height: 880px;
+  padding: 56px 64px;
+  overflow: hidden;
+  text-align: left;
+}
+.card-title { font-size: 54px; margin: 0 0 24px; color: #ffb454; }
+.card-text { font-size: 46px; line-height: 1.4; margin: 0; white-space: pre-wrap; }
+.card-image { max-width: 100%; max-height: 560px; border-radius: 12px; display: block; }
+.card-caption { font-size: 30px; color: #9fb2d8; margin: 20px 0 0; }
+.card-lines { font-size: 38px; line-height: 1.5; margin: 0; padding-left: 36px; }
+.card-dismiss { font-size: 24px; color: #5f719c; margin-top: 32px; }

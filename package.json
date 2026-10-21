@@ -1,0 +1,1 @@
+{"appName":"Muse Gadget TV","appPath":"app/index.html","description":"Muse Gadget TV — turn a Samsung Tizen TV into a Muse gadget (Muse Gadget SDK protocol).","keys":[],"license":"Apache-2.0","name":"muse-gadget-tv","packageType":"app","scripts":{"build":"bash tools/build-wgt.sh","test":"node tests/run-tests.js"},"version":"0.1.0"}

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!--
+  Muse Gadget TV — a Samsung Tizen web app that turns the TV into a Muse
+  gadget, following Meta's Muse Gadget SDK protocol.
+
+  Copyright (c) 2026 Muse Gadget TV contributors
+  Licensed under the Apache License, Version 2.0. See LICENSE in the repo.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, user-scalable=no">
+  <title>Muse Gadget TV</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ============ Ambient / main screen ============ -->
+  <section id="screen-main" class="screen">
+    <header class="ambient-header">
+      <div class="wordmark">Muse <span class="wordmark-thin">Gadget&nbsp;TV</span></div>
+      <div id="status-pill" class="status-pill status-idle">Starting…</div>
+    </header>
+
+    <div class="ambient-center">
+      <div id="clock" class="clock">--:--</div>
+      <div id="dateline" class="dateline"></div>
+      <div id="ambient-hint" class="ambient-hint">Your Muse can show messages, images and briefings here.</div>
+    </div>
+
+    <footer class="ambient-footer">
+      <div class="composer">
+        <input id="chat-input" type="text" placeholder="Send a message to Muse…" autocomplete="off">
+        <button id="chat-send" data-focus>Send</button>
+      </div>
+      <div class="footer-row">
+        <span id="identity-line" class="identity-line"></span>
+        <button id="open-settings" data-focus>Setup &amp; pairing</button>
+      </div>
+      <div id="toast" class="toast" aria-live="polite"></div>
+    </footer>
+  </section>
+
+  <!-- ============ Onboarding / setup screen ============ -->
+  <section id="screen-setup" class="screen hidden">
+    <h1 class="setup-title">Set up Muse Gadget TV</h1>
+    <p class="setup-lede">
+      This TV becomes a Muse gadget: Muse can show messages and briefings on it,
+      read and set its volume, and open apps on it. Nothing works until the TV is
+      paired with your Muse account — there is no demo mode and no fake “paired”
+      state.
+    </p>
+
+    <div class="setup-grid">
+      <div class="setup-card">
+        <h2>1 · SDK token</h2>
+        <p>
+          Every gadget needs an SDK token from
+          <span class="mono">gadgets.muse.ai</span> (Account → SDK tokens).
+          It starts with <span class="mono">mgst_</span>. Muse records the token
+          when the device pairs; it is also sent when the device token rotates.
+        </p>
+        <input id="sdk-token-input" type="text" placeholder="mgst_…" autocomplete="off" spellcheck="false">
+        <div class="row">
+          <button id="sdk-token-save" data-focus>Save token</button>
+          <span id="sdk-token-state" class="field-state"></span>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <h2>2 · This TV</h2>
+        <p>The TV’s gadget identity, created once and kept across unpairing:</p>
+        <dl class="identity-list">
+          <dt>Device name</dt><dd id="id-display-name" class="mono"></dd>
+          <dt>Node ID</dt><dd id="id-node-id" class="mono"></dd>
+          <dt>Bluetooth name</dt><dd id="id-ble-name" class="mono"></dd>
+        </dl>
+        <p id="pairing-state" class="pairing-state"></p>
+      </div>
+
+      <div class="setup-card wide">
+        <h2>3 · Pairing</h2>
+        <p>
+          In the Muse Gadget SDK, pairing happens over Bluetooth: the Muse app
+          finds the gadget by its <span class="mono">MuseGadget</span> name, runs an
+          encrypted setup handshake, and hands the gadget its device credentials.
+          A Tizen <em>web</em> app cannot advertise a Bluetooth service, so the Muse
+          app cannot find or provision this TV directly — the full explanation is in
+          the project’s <span class="mono">PROTOCOL.md</span>.
+        </p>
+        <p>
+          Until that changes, pair by importing device credentials that a completed
+          SDK pairing issued (for example from a gadget you paired with the same
+          Muse account). They are checked against the Muse device API before they
+          are saved — exactly like the SDK checks them — and nothing is stored if
+          the check fails.
+        </p>
+        <label class="field-label" for="import-access">Device access token</label>
+        <input id="import-access" type="text" autocomplete="off" spellcheck="false">
+        <label class="field-label" for="import-refresh">Device refresh token</label>
+        <input id="import-refresh" type="text" autocomplete="off" spellcheck="false">
+        <label class="field-label" for="import-noise-host">Noise host (optional)</label>
+        <input id="import-noise-host" type="text" placeholder="hatch.metaaivm.com" autocomplete="off" spellcheck="false">
+        <div class="row">
+          <button id="import-save" data-focus>Verify &amp; save pairing</button>
+          <button id="unpair" data-focus>Unpair this TV</button>
+          <span id="import-state" class="field-state"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row setup-footer">
+      <button id="setup-back" data-focus>Back</button>
+      <span class="setup-note">Read the Gadget SDK Terms at gadgets.muse.ai/sdk-terms before use. Community gadgets pair without manufacturer verification — set up on a network you trust.</span>
+    </div>
+  </section>
+
+  <!-- ============ Display card overlay (display.* commands) ============ -->
+  <section id="card-overlay" class="card-overlay hidden">
+    <div class="card">
+      <h2 id="card-title" class="card-title hidden"></h2>
+      <img id="card-image" class="card-image hidden" alt="">
+      <p id="card-text" class="card-text hidden"></p>
+      <ul id="card-lines" class="card-lines hidden"></ul>
+      <p id="card-caption" class="card-caption hidden"></p>
+      <div class="card-dismiss">Any key to dismiss</div>
+    </div>
+  </section>
+
+  <script src="js/util.js"></script>
+  <script src="js/crypto.js"></script>
+  <script src="js/p256.js"></script>
+  <script src="js/proto.js"></script>
+  <script src="js/noise.js"></script>
+  <script src="js/envelope.js"></script>
+  <script src="js/framing.js"></script>
+  <script src="js/transport.js"></script>
+  <script src="js/control-framing.js"></script>
+  <script src="js/muse-api.js"></script>
+  <script src="js/identity.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/pairing.js"></script>
+  <script src="js/tv.js"></script>
+  <script src="js/executor.js"></script>
+  <script src="js/link-session.js"></script>
+  <script src="js/service.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+Muse Gadget TV
+Copyright (c) 2026 Muse Gadget TV contributors
+
+This project is an independent port of the Muse Gadget protocol for Samsung
+Tizen TVs. The protocol implementation (device API client, Noise XX session,
+control-stream framing, pairing v5) is derived from Meta's Muse Gadget SDK:
+
+    Muse Gadget SDK
+    Copyright (c) Meta Platforms, Inc. and affiliates.
+    https://github.com/facebookincubator/muse-gadget-sdk
+    Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Derived does not mean copied wholesale: each module in app/js is a fresh
+JavaScript implementation written against the SDK's Python sources, which
+are named file-by-file in PROTOCOL.md. The pairing test vectors in
+tests/fixtures/link_pairing_v5.json are reproduced from the SDK's
+linux/tests/vectors/ for verification; they are public synthetic test data.
+
+The Apache License does not cover the "Jollybot" avatar artwork in the
+SDK's esp32/avatar/ directory. This project contains none of it: the icon
+and all artwork here are original to this project.
+
+"Muse" is a product of Meta. This is a community project built on the
+public Muse Gadget SDK; it is not made by Meta.

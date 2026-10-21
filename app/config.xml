@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Muse Gadget TV — Tizen web application manifest.
+
+  Copyright (c) 2026 Muse Gadget TV contributors
+  Licensed under the Apache License, Version 2.0. See LICENSE in the repo.
+-->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://example.invalid/muse-gadget-tv" version="0.1.0">
+  <tizen:application id="muse.gadget.tv" package="muse.gadget" required_version="5.5"/>
+  <tizen:profile name="tv-samsung"/>
+  <name>Muse Gadget TV</name>
+  <description>Turns this Samsung TV into a Muse gadget: Muse can show messages, images and briefings on it, control its volume and open apps. Follows the Muse Gadget SDK protocol.</description>
+  <author>Muse Gadget TV contributors</author>
+  <icon src="icon.png"/>
+  <content src="index.html"/>
+  <!-- The gadget talks to https://api.muse.ai and wss://*.metaaivm.com; the
+       Tizen widget access model needs an access entry for cross-origin calls. -->
+  <access origin="*" subdomains="true"/>
+  <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="enable" encryption="disable" hwkey-event="enable"/>
+  <!-- Muse device API + Noise WebSocket -->
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <!-- tv.launch_app -->
+  <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+  <!-- tizen.tvaudiocontrol volume/mute (Samsung TV API) -->
+  <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
+  <!-- remote key registration surface -->
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <!-- systeminfo for device.health. The bluetooth privilege is declared for
+       completeness of the pairing story: a Tizen web app still gets no BLE
+       GATT server (peripheral) API, so on-TV BLE pairing is not possible —
+       see PROTOCOL.md in the repository. -->
+  <tizen:privilege name="http://tizen.org/privilege/system"/>
+  <tizen:privilege name="http://tizen.org/privilege/bluetooth"/>
+</widget>
