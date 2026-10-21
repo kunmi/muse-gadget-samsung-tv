@@ -20,12 +20,16 @@ AES-256-GCM, SHA-256), the protobuf transport framing, and pairing v5.
 > [Verification](#verification)). It has **not** been run on a real TV, and
 > two things stand between this repo and a working gadget on your wall:
 >
-> 1. **Pairing.** In the SDK, pairing happens over Bluetooth, and a Tizen
->    *web* app cannot advertise a Bluetooth GATT service — so the Muse app
->    cannot provision the TV directly. This app implements the full pairing
->    protocol but provisions by *importing* a device credential pair from a
->    completed SDK pairing, verified against the Muse API before it is
->    saved. The whole story, unsparingly, is in [PROTOCOL.md](PROTOCOL.md).
+> 1. **Pairing.** In the SDK, the Muse app hands a gadget its credentials
+>    over Bluetooth, and a Tizen *web* app cannot advertise a Bluetooth GATT
+>    service — so the Muse app cannot provision the TV directly. But a
+>    gadget's *login* is pure web (HTTPS to the Muse device API), and a
+>    completed pairing is two small files, so the TV logs in by **pairing
+>    transfer**: pair any BLE-capable gadget client once, then paste its
+>    `identity.json` + `pairing.json` into the TV, which verifies them
+>    against the Muse API and adopts the pairing's identity. This is the
+>    flow the community PSP port established for a device with no Bluetooth
+>    at all. The whole story, unsparingly, is in [PROTOCOL.md](PROTOCOL.md).
 > 2. **The WebSocket upgrade.** The SDK authenticates the Noise connection
 >    with an `Authorization` header on the WebSocket upgrade; browsers
 >    cannot set WebSocket headers, so whether the production edge accepts
@@ -96,15 +100,20 @@ and run on a TV in developer mode. The project is the `app/` folder itself
 2. **Enter it on the TV.** Open Muse Gadget TV → *Setup & pairing*, paste
    the token, Save. The TV generates its gadget identity once (a
    `MuseGadgetTVXXXXXX` name and a `homelink-xxxxxx` node id) and keeps it
-   across unpairing.
-3. **Pair.** On gadgets with Bluetooth, you would now use the Muse app:
-   *Settings → Devices → Developer mode*, then *Add Device* and pick the
-   `MuseGadget…` name. A Tizen web app cannot advertise Bluetooth (see the
-   status box above and PROTOCOL.md), so on the TV you instead paste the
-   **device access token + refresh token** from a completed SDK pairing
-   with the same Muse account (for example the `pairing.json` of a Linux
-   gadget). The TV checks them against the Muse device API before saving —
-   nothing is stored if the check fails.
+   across unpairing — unless a web login (next step) replaces it with a
+   transferred pairing's identity.
+3. **Log in (pairing transfer).** On a computer or Raspberry Pi with
+   Bluetooth, install the SDK's Linux client and pair it with the Muse
+   app (*Settings → Devices → Developer mode*, then *Add Device*). Stop
+   that client and leave it off — only one device can use a pairing at a
+   time. Copy `identity.json` and `pairing.json` from its state folder
+   (`/var/lib/musegadget`) and paste both into the TV's *Setup & pairing*
+   → *Log in over the web*. The TV checks the credentials against the Muse
+   device API before saving — nothing is stored if the check fails — adopts
+   the pairing's identity, and from then on connects and rotates its
+   tokens by itself over HTTPS. (Pasting just the two device tokens also
+   works as a fallback, but keeps the TV's own identity; see PROTOCOL.md
+   for why the files are the reliable path.)
 4. **Use it.** Once the status pill says *Connected to Muse*, ask Muse to
    show something on the TV, or type a message to Muse in the TV's
    composer.
@@ -138,13 +147,18 @@ up on a network you trust, as the SDK's own README advises.
   pairing record;
 - the device API client against a local mock server (request shapes,
   parsing, refresh semantics);
+- the web login (pairing transfer): SDK state-file parsing with the PSP
+  tool's validation rules, the verify-before-save gate against a mock
+  device API (a rejected transfer saves nothing and adopts nothing),
+  identity adoption, and rotation presenting the adopted node id;
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
   cleanly otherwise. CI runs it in full.
 
 Not verified (needs hardware and a real account): the on-TV run, the store
-install paths, live pairing, the production WebSocket edge.
+install paths, live pairing, a live pairing transfer, the production
+WebSocket edge.
 
 ## Layout
 

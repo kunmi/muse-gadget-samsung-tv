@@ -28,7 +28,7 @@ html, body {
 }
 
 /* ---------- focused element (remote navigation) ---------- */
-button, input {
+button, input, textarea {
   font: inherit;
   color: inherit;
 }
@@ -55,6 +55,21 @@ input {
   width: 100%;
 }
 input.focused {
+  border-color: #ffb454;
+  outline: 4px solid #ffb454;
+  outline-offset: 2px;
+}
+textarea {
+  background: #0e1528;
+  border: 3px solid #33436b;
+  border-radius: 14px;
+  padding: 16px 24px;
+  font-size: 24px;
+  line-height: 1.35;
+  width: 100%;
+  resize: none;
+}
+textarea.focused {
   border-color: #ffb454;
   outline: 4px solid #ffb454;
   outline-offset: 2px;
@@ -120,7 +135,7 @@ input.focused {
 .toast { font-size: 28px; color: #ffd9a0; min-height: 36px; }
 
 /* ---------- setup screen ---------- */
-#screen-setup { overflow: hidden; }
+#screen-setup { overflow-y: auto; }
 .setup-title { font-size: 56px; margin: 0 0 12px; }
 .setup-lede { font-size: 30px; color: #c6d2ec; max-width: 1500px; margin: 0 0 36px; line-height: 1.45; }
 .setup-grid {
@@ -138,6 +153,10 @@ input.focused {
 .setup-card h2 { font-size: 34px; margin: 0 0 14px; color: #ffb454; }
 .setup-card p { font-size: 26px; line-height: 1.5; color: #c6d2ec; margin: 0 0 16px; }
 .setup-card input { margin-bottom: 16px; }
+.setup-card textarea { margin-bottom: 16px; }
+.setup-card .steps { font-size: 26px; line-height: 1.5; color: #c6d2ec; margin: 0 0 16px; padding-left: 38px; }
+.setup-card .steps li { margin-bottom: 8px; }
+.setup-card h3.fallback-title { font-size: 30px; margin: 28px 0 12px; color: #ffb454; }
 .row { display: flex; align-items: center; gap: 20px; }
 .field-state { font-size: 26px; color: #9fe8bb; }
 .field-state.error { color: #ff9d9d; }

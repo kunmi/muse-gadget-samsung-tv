@@ -34,6 +34,9 @@
   var BLE_NAME_PREFIX = 'MuseGadget';
   var DISPLAY_NAME_PREFIX = 'MuseGadgetTV';
   var MAC_RE = /^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/;
+  // The MAC shape tools/pair.py in the community PSP port accepts in an
+  // identity.json (either case; the SDK stores lowercase).
+  var MAC_RE_ANY_CASE = /^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
   var STORAGE_KEY = 'museGadgetTv.identity';
 
   function generateMac() {
@@ -93,10 +96,33 @@
     return identity;
   }
 
+  // Adopts the identity from a completed pairing's identity.json — the
+  // web-login (pairing transfer) path in web-login.js. A pairing's device
+  // tokens belong to the identity they were issued to: the SDK's clients
+  // derive the node id used at registration and at token refresh from this
+  // MAC (linux/src/musegadget/identity.py; the PSP port's src/store.rs), so
+  // importing tokens without their identity would leave the TV registering
+  // and refreshing as the wrong device. The MAC is validated with the same
+  // shape the PSP port's tools/pair.py enforces and stored lowercase, in
+  // the SDK's own file format ({"mac": ...}), under the same storage key
+  // loadOrCreate reads. Returns the adopted Identity.
+  function adoptMac(storage, mac) {
+    if (typeof mac !== 'string' || !MAC_RE_ANY_CASE.test(mac.trim())) {
+      throw new Error('identity.json has no usable "mac"');
+    }
+    var normalized = mac.trim().toLowerCase();
+    var identity = new Identity(normalized);
+    storage.setItem(STORAGE_KEY, JSON.stringify({ mac: normalized }));
+    return identity;
+  }
+
   MG.identity = {
     Identity: Identity,
     generateMac: generateMac,
     loadOrCreate: loadOrCreate,
+    adoptMac: adoptMac,
+    MAC_RE: MAC_RE,
+    MAC_RE_ANY_CASE: MAC_RE_ANY_CASE,
     STORAGE_KEY: STORAGE_KEY,
   };
 

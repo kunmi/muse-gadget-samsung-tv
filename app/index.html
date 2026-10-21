@@ -68,7 +68,9 @@
 
       <div class="setup-card">
         <h2>2 · This TV</h2>
-        <p>The TV’s gadget identity, created once and kept across unpairing:</p>
+        <p>The TV’s gadget identity, created once and kept across unpairing.
+          A web login (card 3) replaces it with the identity of the pairing
+          you transfer in:</p>
         <dl class="identity-list">
           <dt>Device name</dt><dd id="id-display-name" class="mono"></dd>
           <dt>Node ID</dt><dd id="id-node-id" class="mono"></dd>
@@ -78,21 +80,50 @@
       </div>
 
       <div class="setup-card wide">
-        <h2>3 · Pairing</h2>
+        <h2>3 · Log in over the web (pairing transfer)</h2>
         <p>
-          In the Muse Gadget SDK, pairing happens over Bluetooth: the Muse app
-          finds the gadget by its <span class="mono">MuseGadget</span> name, runs an
-          encrypted setup handshake, and hands the gadget its device credentials.
-          A Tizen <em>web</em> app cannot advertise a Bluetooth service, so the Muse
-          app cannot find or provision this TV directly — the full explanation is in
-          the project’s <span class="mono">PROTOCOL.md</span>.
+          A gadget’s login lives on the web: sessions and token rotation run
+          over HTTPS against the Muse device API. Bluetooth is used exactly
+          once — by the Muse app, to hand a gadget its device credentials —
+          and a completed pairing is just two small files, so any gadget
+          client can run that step and hand the result over. That is how the
+          community PSP port logs in with no Bluetooth at all, and it is what
+          happens here. (A Tizen <em>web</em> app cannot advertise a Bluetooth
+          service, so the Muse app cannot provision this TV directly — the
+          full explanation is in the project’s <span class="mono">PROTOCOL.md</span>.)
         </p>
+        <ol class="steps">
+          <li>On a computer or Raspberry Pi with Bluetooth, install the Muse
+            Gadget SDK’s Linux client and pair it with the Muse app
+            (<em>Settings → Devices → Developer mode → Add Device</em>).</li>
+          <li>Stop that client and leave it off. Only one device can use a
+            pairing at a time, and every token rotation replaces the pair.</li>
+          <li>Copy <span class="mono">identity.json</span> and
+            <span class="mono">pairing.json</span> from its state folder
+            (<span class="mono">/var/lib/musegadget</span>) and paste both
+            files below.</li>
+          <li>Press <em>Verify &amp; log in</em>. The TV checks the credentials
+            against the Muse device API before saving anything — the same
+            check the SDK runs — adopts the pairing’s identity, and from then
+            on connects and rotates its tokens by itself over HTTPS.</li>
+        </ol>
+        <label class="field-label" for="login-identity">identity.json</label>
+        <textarea id="login-identity" rows="2" autocomplete="off" spellcheck="false" placeholder='{"mac": "aa:bb:cc:dd:ee:ff"}'></textarea>
+        <label class="field-label" for="login-pairing">pairing.json</label>
+        <textarea id="login-pairing" rows="3" autocomplete="off" spellcheck="false" placeholder='{"access_token": "…", "refresh_token": "…"}'></textarea>
+        <div class="row">
+          <button id="login-save" data-focus>Verify &amp; log in</button>
+          <button id="unpair" data-focus>Unpair this TV</button>
+          <span id="login-state" class="field-state"></span>
+        </div>
+
+        <h3 class="fallback-title">Fallback: paste the two device tokens</h3>
         <p>
-          Until that changes, pair by importing device credentials that a completed
-          SDK pairing issued (for example from a gadget you paired with the same
-          Muse account). They are checked against the Muse device API before they
-          are saved — exactly like the SDK checks them — and nothing is stored if
-          the check fails.
+          The same credentials as two fields, without the files. With this
+          path the TV keeps its own identity (card 2) — but a pairing’s
+          tokens belong to the identity they were issued to, and the TV
+          presents that identity’s node id when it registers and rotates
+          tokens, so prefer the file login above whenever you have the files.
         </p>
         <label class="field-label" for="import-access">Device access token</label>
         <input id="import-access" type="text" autocomplete="off" spellcheck="false">
@@ -102,7 +133,6 @@
         <input id="import-noise-host" type="text" placeholder="hatch.metaaivm.com" autocomplete="off" spellcheck="false">
         <div class="row">
           <button id="import-save" data-focus>Verify &amp; save pairing</button>
-          <button id="unpair" data-focus>Unpair this TV</button>
           <span id="import-state" class="field-state"></span>
         </div>
       </div>
@@ -139,6 +169,7 @@
   <script src="js/identity.js"></script>
   <script src="js/store.js"></script>
   <script src="js/pairing.js"></script>
+  <script src="js/web-login.js"></script>
   <script src="js/tv.js"></script>
   <script src="js/executor.js"></script>
   <script src="js/link-session.js"></script>

@@ -104,12 +104,6 @@
     },
   };
 
-  var executor = MG.executor.createExecutor(ui, {
-    startedAt: startedAt,
-    nodeId: identity.nodeId,
-    version: version,
-  });
-
   /* ---------- service + status UI ---------- */
   var pill = el('status-pill');
   function setPill(text, cls) {
@@ -117,30 +111,48 @@
     pill.className = 'status-pill ' + cls;
   }
 
-  var service = new MG.service.GadgetService({
-    identity: identity,
-    store: store,
-    runCommand: executor.run,
-    commands: MG.executor.COMMAND_SPECS,
-    version: version,
-    log: function (msg) {
-      if (window.console) console.log('[musegadget] ' + msg);
-    },
-    onState: function (state, detail) {
-      if (state === 'unpaired') {
-        setPill('Not paired', 'status-warn');
-        renderPairingState();
-      } else if (state === 'connecting') {
-        setPill('Connecting to Muse…', 'status-idle');
-      } else if (state === 'registered') {
-        setPill('Connected to Muse', 'status-ok');
-      } else if (state === 'waiting') {
-        setPill('Reconnecting…', 'status-warn');
-      } else if (state === 'stopped') {
-        setPill('Stopped', 'status-idle');
-      }
-    },
-  });
+  // Executor + service are rebuilt (not just restarted) when a web login
+  // adopts a transferred pairing's identity: both capture the identity's
+  // node id, so the old objects would keep speaking for the wrong device.
+  var executor = null;
+  var service = null;
+  function buildRuntime() {
+    executor = MG.executor.createExecutor(ui, {
+      startedAt: startedAt,
+      nodeId: identity.nodeId,
+      version: version,
+    });
+    service = new MG.service.GadgetService({
+      identity: identity,
+      store: store,
+      runCommand: executor.run,
+      commands: MG.executor.COMMAND_SPECS,
+      version: version,
+      log: function (msg) {
+        if (window.console) console.log('[musegadget] ' + msg);
+      },
+      onState: function (state, detail) {
+        if (state === 'unpaired') {
+          setPill('Not paired', 'status-warn');
+          renderPairingState();
+        } else if (state === 'connecting') {
+          setPill('Connecting to Muse…', 'status-idle');
+        } else if (state === 'registered') {
+          setPill('Connected to Muse', 'status-ok');
+        } else if (state === 'waiting') {
+          setPill('Reconnecting…', 'status-warn');
+        } else if (state === 'stopped') {
+          setPill('Stopped', 'status-idle');
+        }
+      },
+    });
+  }
+  function restartRuntime() {
+    if (service) service.stop();
+    buildRuntime();
+    service.start();
+  }
+  buildRuntime();
 
   function toast(message) {
     var t = el('toast');
@@ -160,9 +172,12 @@
   }
 
   /* ---------- spatial navigation ---------- */
+  function isTextField(node) {
+    return node && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA');
+  }
   function focusables() {
     var screen = currentScreen === 'main' ? el('screen-main') : el('screen-setup');
-    var nodes = screen.querySelectorAll('button, input');
+    var nodes = screen.querySelectorAll('button, input, textarea');
     var out = [];
     for (var i = 0; i < nodes.length; i++) {
       if (nodes[i].offsetParent !== null) out.push(nodes[i]);
@@ -175,9 +190,12 @@
     focusedEl = node;
     if (node) {
       node.classList.add('focused');
-      if (node.tagName === 'INPUT') node.focus();
-      else if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+      if (isTextField(node)) node.focus();
+      else if (isTextField(document.activeElement)) {
         document.activeElement.blur();
+      }
+      if (node.scrollIntoView) {
+        try { node.scrollIntoView({ block: 'nearest' }); } catch (err) { /* older runtimes */ }
       }
     }
   }
@@ -223,7 +241,7 @@
       event.preventDefault();
       return;
     }
-    var editing = document.activeElement && document.activeElement.tagName === 'INPUT';
+    var editing = isTextField(document.activeElement);
     if (key === 'ArrowUp') { moveFocus('up'); event.preventDefault(); }
     else if (key === 'ArrowDown') { moveFocus('down'); event.preventDefault(); }
     else if (key === 'ArrowLeft' && !editing) { moveFocus('left'); event.preventDefault(); }
@@ -254,11 +272,14 @@
   setInterval(tickClock, 1000);
 
   /* ---------- setup screen content ---------- */
-  el('id-display-name').textContent = identity.displayName;
-  el('id-node-id').textContent = identity.nodeId;
-  el('id-ble-name').textContent = identity.bleName;
-  el('identity-line').textContent =
-    identity.displayName + ' · ' + identity.nodeId;
+  function renderIdentity() {
+    el('id-display-name').textContent = identity.displayName;
+    el('id-node-id').textContent = identity.nodeId;
+    el('id-ble-name').textContent = identity.bleName;
+    el('identity-line').textContent =
+      identity.displayName + ' · ' + identity.nodeId;
+  }
+  renderIdentity();
 
   function renderSdkTokenState() {
     var state = el('sdk-token-state');
@@ -303,6 +324,49 @@
       state.textContent = err.message;
       state.classList.add('error');
     }
+  });
+
+  // Web login (pairing transfer): the primary onboarding path. Parses the
+  // two state files of a completed SDK pairing, verifies the credentials
+  // with the device API, adopts the pairing's identity and only then saves
+  // (web-login.js). The runtime is rebuilt so the service registers and
+  // rotates tokens as the adopted identity, not the TV's previous one.
+  el('login-save').addEventListener('click', function () {
+    var state = el('login-state');
+    state.textContent = 'Checking the credentials with Muse…';
+    state.classList.remove('error');
+    var sdkToken = null;
+    try { sdkToken = store.getSdkToken(); } catch (err) { sdkToken = null; }
+    Promise.resolve().then(function () {
+      return MG.webLogin.login(
+        {
+          fetchVms: MG.museApi.fetchVms,
+          apiRoot: MG.museApi.apiRoot,
+          store: store,
+          sdkToken: sdkToken,
+          nowSeconds: function () { return Date.now() / 1000; },
+          adoptIdentity: function (mac) {
+            identity = MG.identity.adoptMac(storage, mac);
+            return identity;
+          },
+        },
+        el('login-identity').value,
+        el('login-pairing').value
+      );
+    }).then(function (result) {
+      state.textContent = 'Logged in as ' + result.nodeId +
+        '. The TV now connects to Muse by itself.';
+      el('login-identity').value = '';
+      el('login-pairing').value = '';
+      renderIdentity();
+      renderPairingState();
+      restartRuntime();
+      showScreen('main');
+    }).catch(function (err) {
+      state.textContent = 'Login failed: ' + (err && err.status ? err.status : err.message) +
+        '. Nothing was saved.';
+      state.classList.add('error');
+    });
   });
 
   el('import-save').addEventListener('click', function () {
@@ -358,8 +422,8 @@
     store.clearPairing();
     service.disconnectSession();
     renderPairingState();
-    el('import-state').textContent = 'Unpaired. Device credentials were removed from this TV.';
-    el('import-state').classList.remove('error');
+    el('login-state').textContent = 'Unpaired. Device credentials were removed from this TV.';
+    el('login-state').classList.remove('error');
   });
 
   el('open-settings').addEventListener('click', function () {

@@ -10,7 +10,7 @@ const APP_JS = path.join(__dirname, '..', 'app', 'js');
 const MODULE_ORDER = [
   'util.js', 'crypto.js', 'p256.js', 'proto.js', 'noise.js', 'envelope.js',
   'framing.js', 'transport.js', 'control-framing.js', 'muse-api.js',
-  'identity.js', 'store.js', 'pairing.js', 'tv.js', 'executor.js',
+  'identity.js', 'store.js', 'pairing.js', 'web-login.js', 'tv.js', 'executor.js',
   'link-session.js', 'service.js',
 ];
 

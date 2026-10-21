@@ -73,6 +73,7 @@ stayed registered ≥ 30 s, re-register after every reconnect.
 | `service.js` | `linux/src/musegadget/service.py` (reconnect loop, rotation) |
 | `executor.js` | `linux/src/musegadget/executor.py` (spec format + result shape; TV command set) |
 | `pairing.js` | `pairing.py` + `ble_setup.py` + `ble_framing.py` + `pair.py` (verify-and-save); GATT UUIDs from `ble_server.py` |
+| `web-login.js` | the pairing-transfer login: SDK `config.py` state files (`identity.json`, `pairing.json`) + `pair.py` verify-and-save + `identity.py` node-id derivation, following the community PSP port (`tools/pair.py`, `src/store.rs`) |
 | `tv.js` | Samsung Tizen web APIs (no SDK counterpart; the inverse of the SDK's `skills/gadget-samsung-tizen-tvs` host-side skill) |
 | `app.js` | UI only (no SDK counterpart) |
 
@@ -114,7 +115,8 @@ advertising, the Muse app never sees the TV, so the v5 handshake and
 `provision_v2` can never reach it. This is a platform limit of the web
 runtime, not something more code in the `.wgt` can fix.
 
-What the TV app does instead:
+What the TV app does instead — the **web login (pairing transfer)**, the
+primary onboarding path:
 
 - `pairing.js` implements the **complete device side of pairing v5** —
   transcript, key schedule, record encryption, the `SetupController`
@@ -124,19 +126,54 @@ What the TV app does instead:
   phone in the test suite drives the full flow to a saved pairing record.
   If a future shell (native wrapper, different runtime) ever provides a GATT
   server transport, the pairing code is ready to run over it unchanged.
-- For real provisioning today, the setup screen offers **credential
-  import**: the user pastes a device access/refresh token pair that a
-  completed SDK pairing issued, and the app runs `pair.py`'s exact
-  verify-and-save step (`fetch_vms` must return a VM) before storing
-  anything. Nothing is stored on failure, and the app never shows a paired
-  state it did not verify.
+- A gadget's *login* — everything after the one-time credential delivery —
+  is already pure web: HTTPS against `api.muse.ai` (`fetch_vms`,
+  `/device_token/refresh`, then the Noise session). And a completed pairing
+  is portable: it is two small files in the client state directory
+  (SDK `config.py`; default `/var/lib/musegadget`):
+  `identity.json` (`{"mac": …}`) and `pairing.json` (the record from step 4
+  above). The community PSP port proved the pattern for a device with no
+  Bluetooth at all (wobsoriano/muse-gadget-psp: its README's "Pair it with
+  Muse", `tools/pair.py`, `src/store.rs`): a BLE-capable client runs the
+  Bluetooth conversation once, the files change hands, and the BLE-less
+  device connects and renews its credentials by itself from then on.
+- `web-login.js` implements that transfer for the TV. The user pastes both
+  files into the setup screen; the app validates them with the PSP tool's
+  rules (MAC shape; non-empty `access_token`/`refresh_token`), runs
+  `pair.py`'s exact verify-and-save step (`fetch_vms` with the transferred
+  access token must lease a VM — nothing is saved, and the identity is not
+  touched, when it does not), and **adopts the identity**: the TV's stored
+  MAC becomes the MAC from `identity.json`. Adoption is not cosmetic —
+  every SDK client derives the node id from the identity MAC
+  (`identity.py`) and presents that node id at registration and in the
+  `/device_token/refresh` body (`service.py`), so tokens imported without
+  their identity would be spent by the wrong device. After a transfer the
+  app rebuilds its runtime so the service registers and rotates as the
+  adopted identity.
+- Two rules travel with the transfer (PSP README): **only one device can
+  use an identity at a time** — the helper client must stay off, or be
+  removed, once the TV has the pairing — and every rotation replaces the
+  token pair, so a helper that wakes up and refreshes will strand the TV
+  (and vice versa).
+- The old **credential import** remains as a fallback: paste just the
+  access/refresh token pair. It runs the same verify-and-save, but the TV
+  keeps its own identity, so it is only sound when the pair was issued to
+  this TV's node id; the file login above is the reliable path.
 - The SDK token is still collected in onboarding and used exactly as the SDK
   uses it: recorded as the pairing's hint and sent on token refresh.
 
-What remains for the user: obtaining the device credential pair currently
-means completing one SDK pairing (e.g. the Linux gadget on a Pi) with the
-same Muse account and copying the pair from its `pairing.json`. That is
-clunky and is stated plainly in the UI and README.
+What remains for the user: one completed SDK pairing on a BLE-capable
+device (e.g. the Linux client on a Pi or laptop) with the same Muse
+account, then copying the two state files to the TV. There is no way
+around that single Bluetooth conversation: no browser sign-in, device-code
+flow or token vending page for gadgets exists in the SDK, on
+gadgets.muse.ai, or in any community port we surveyed (the PSP, Tufty and
+Android ports all either pair over BLE themselves or import a pairing made
+over BLE). The PSP port's author notes he had not run the transfer itself
+end to end with the Linux client ("expect to adjust a step"); this app
+follows both codebases' file formats and verification gates exactly, but
+the transfer with a real account is likewise unverified here — see the
+verification status at the end of this file.
 
 ### 2. The WebSocket upgrade cannot carry the Authorization header
 
@@ -212,9 +249,13 @@ chat (no `session_id`), like `musegadget send-user-msg` without arguments.
   Tizen 5.5+ (2020 and later Samsung TVs). `config.xml` declares
   `required_version="5.5"`.
 - **ESP32-only endpoints**: `POST /device_token/mint` exists in the ESP32
-  SDK's API client (it exchanges a *user/session* token for a device pair)
-  but no shipped device code calls it — provisioning arrives via
-  `provision_v2` only. It is not used here either.
+  SDK's API client (the Linux client has no equivalent). It exchanges a
+  *user/session* token for a device pair, and the firmware does call it —
+  from `accept_pairing_credentials`, when the Muse app hands over a source
+  token without a refresh token during BLE provisioning, and to migrate a
+  legacy `auth_token`. It is not a standalone web login: the source token
+  itself arrives over BLE from the app, and a gadget has no way to obtain
+  a user session token on its own. It is not used here.
 
 ## Verification status (honest)
 
@@ -223,13 +264,19 @@ standard vectors and Node's native implementations; envelope/framing bytes
 against goldens generated by running the SDK's Python code; the Noise XX
 loopback; the pairing vectors byte-for-byte; a simulated-phone pairing that
 saves a verified record; the device API request shapes against a local mock
-server; and a **full interop run of this JS client against the SDK's own
-Python Noise responder and control stream** (register → invoke → result →
-chat → unpaired), modelled on the SDK's `tests/test_link_client.py`.
+server; the web login's file parsing, verify gate and identity adoption
+against a local mock device API (including that a rejected transfer saves
+nothing and that rotation afterwards presents the adopted node id); and a
+**full interop run of this JS client against the SDK's own Python Noise
+responder and control stream** (register → invoke → result → chat →
+unpaired), modelled on the SDK's `tests/test_link_client.py`.
 
 Not verified — cannot be, in this environment: running on a real Samsung TV
 (no hardware), TizenBrew/Apps2Samsung installation, a live pairing, the
-WebSocket upgrade against the production edge (gap 2 above), and an
-end-to-end session with a real Muse VM using a real SDK token and device
-credentials. The on-TV run remains unverified until the app is installed on
-a TV and paired.
+web login against a real account's transferred pairing (the flow is tested
+against a mock device API and follows the SDK/PSP file formats exactly;
+the PSP port's author likewise reports the transfer itself untested end to
+end), the WebSocket upgrade against the production edge (gap 2 above), and
+an end-to-end session with a real Muse VM using a real SDK token and
+device credentials. The on-TV run remains unverified until the app is
+installed on a TV and paired.

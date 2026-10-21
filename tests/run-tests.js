@@ -10,6 +10,7 @@ require('./test-noise');
 require('./test-framing');
 require('./test-pairing');
 require('./test-muse-api');
+require('./test-web-login');
 require('./test-app-modules');
 require('./test-interop');
 
