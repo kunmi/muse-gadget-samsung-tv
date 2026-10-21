@@ -38,6 +38,7 @@
       },
       optional: {
         title: { type: 'string', description: 'Optional heading above the message.' },
+        speak: { type: 'boolean', description: 'Read the message aloud (text-to-speech). True speaks even if the household has read-aloud off; false never speaks. When omitted, the TV speaks only if the household turned "Read messages aloud" on.' },
       },
     },
     'display.image': {
@@ -55,6 +56,22 @@
         title: { type: 'string', description: 'The briefing heading.' },
         lines: { type: 'array', description: 'Array of strings, one per line of the briefing.' },
       },
+      optional: {
+        speak: { type: 'boolean', description: 'Read the briefing (title and lines) aloud. Same semantics as display.text\'s speak.' },
+      },
+    },
+    'speech.say': {
+      description: 'Speak text aloud on the TV (text-to-speech) without showing a card. The result reports whether anything was spoken: on a TV whose web runtime exposes no speech voices, spoken is false.',
+      required: {
+        text: { type: 'string', description: 'The text to speak (capped at 500 characters).' },
+      },
+      optional: {
+        interrupt: { type: 'boolean', description: 'Cancel whatever is currently being spoken and start this immediately. Default: queue behind current speech.' },
+      },
+    },
+    'speech.stop': {
+      description: 'Stop any speech on the TV and clear queued speech.',
+      required: {},
       optional: {},
     },
     'tv.volume.get': {
@@ -129,6 +146,15 @@
     return value;
   }
 
+  function optionalBool(params, name) {
+    var value = params[name];
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'boolean') {
+      throw new Error('invalid parameter: ' + name + ' (boolean required)');
+    }
+    return value;
+  }
+
   function optionalInt(params, name) {
     var value = params[name];
     if (value === undefined || value === null) return null;
@@ -140,10 +166,26 @@
 
   // ui: {showText({title, text}), showImage({url, caption}),
   //      showBriefing({title, lines})} — supplied by app.js.
-  // deps: {startedAt} for uptime.
+  // deps: {startedAt} for uptime; {speech} — an MG.speech instance for
+  // display.* read-aloud and the speech.* commands (optional: without it,
+  // speech requests simply report not spoken).
   function createExecutor(ui, deps) {
     deps = deps || {};
     var startedAt = deps.startedAt || Date.now();
+    var speech = deps.speech || null;
+
+    // Speech outcome for a display command: speak:true forces an explicit
+    // say(), speak:false suppresses speech, and no speak parameter defers
+    // to the read-aloud preference via announce(). Returns true/false when
+    // speech was attempted, null when it was not (callers then omit the
+    // `spoken` field from the payload entirely).
+    function speechOutcome(params, spokenText) {
+      if (!speech) return null;
+      var speak = optionalBool(params, 'speak');
+      if (speak === false) return null;
+      if (speak === true) return speech.say(spokenText);
+      return speech.announce(spokenText);
+    }
 
     function volumeState() {
       var state = { volume: tv.volume.get() };
@@ -163,7 +205,10 @@
             var text = requireString(params, 'text');
             var title = optionalString(params, 'title');
             ui.showText({ title: title, text: text });
-            return ok({ shown: true });
+            var textPayload = { shown: true };
+            var textSpoken = speechOutcome(params, title ? title + '. ' + text : text);
+            if (textSpoken !== null) textPayload.spoken = textSpoken;
+            return ok(textPayload);
           }
           case 'display.image': {
             var url = requireString(params, 'url');
@@ -182,7 +227,20 @@
             }
             lines = lines.map(function (line) { return String(line); });
             ui.showBriefing({ title: bTitle, lines: lines });
-            return ok({ shown: true, lines: lines.length });
+            var briefingPayload = { shown: true, lines: lines.length };
+            var briefingSpoken = speechOutcome(params, bTitle + '. ' + lines.join('. '));
+            if (briefingSpoken !== null) briefingPayload.spoken = briefingSpoken;
+            return ok(briefingPayload);
+          }
+          case 'speech.say': {
+            var sayText = requireString(params, 'text');
+            if (!speech) return ok({ spoken: false, supported: false });
+            var said = speech.say(sayText, { interrupt: optionalBool(params, 'interrupt') === true });
+            return ok({ spoken: said, supported: speech.isSupported() });
+          }
+          case 'speech.stop': {
+            if (speech) speech.stop();
+            return ok({ stopped: true });
           }
           case 'tv.volume.get':
             return ok(volumeState());

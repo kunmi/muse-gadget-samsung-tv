@@ -46,6 +46,16 @@
   var store = new MG.store.Store(storage);
   var version = MG.museApi.VERSION;
 
+  /* ---------- speech (text-to-speech) ---------- */
+  // Feature-detected by MG.speech: a TV whose runtime exposes no
+  // synthesiser or no voices simply stays silent.
+  var speechCtl = MG.speech.create({
+    synthesis: typeof window.speechSynthesis !== 'undefined' ? window.speechSynthesis : null,
+    Utterance: typeof window.SpeechSynthesisUtterance !== 'undefined'
+      ? window.SpeechSynthesisUtterance : null,
+    storage: storage,
+  });
+
   function el(id) { return document.getElementById(id); }
 
   /* ---------- display-card overlay (executor UI hooks) ---------- */
@@ -121,6 +131,7 @@
       startedAt: startedAt,
       nodeId: identity.nodeId,
       version: version,
+      speech: speechCtl,
     });
     service = new MG.service.GadgetService({
       identity: identity,
@@ -185,19 +196,33 @@
     return out;
   }
   var focusedEl = null;
-  function setFocus(node) {
+  // Visual/spatial focus only (the .focused ring + scroll into view);
+  // setFocus adds the DOM-focus management on top.
+  function paintFocus(node) {
     if (focusedEl) focusedEl.classList.remove('focused');
     focusedEl = node;
     if (node) {
       node.classList.add('focused');
-      if (isTextField(node)) node.focus();
-      else if (isTextField(document.activeElement)) {
-        document.activeElement.blur();
-      }
       if (node.scrollIntoView) {
         try { node.scrollIntoView({ block: 'nearest' }); } catch (err) { /* older runtimes */ }
       }
     }
+  }
+  function setFocus(node) {
+    paintFocus(node);
+    if (node) {
+      if (isTextField(node)) node.focus();
+      else if (isTextField(document.activeElement)) {
+        document.activeElement.blur();
+      }
+    }
+  }
+  function focusStep(delta) {
+    var list = focusables();
+    if (!list.length) return;
+    var idx = list.indexOf(focusedEl);
+    if (idx < 0) idx = delta > 0 ? -1 : 0;
+    setFocus(list[(idx + delta + list.length) % list.length]);
   }
   function focusFirst(screenName) {
     var list = focusables();
@@ -233,28 +258,89 @@
     if (best) setFocus(best);
   }
 
-  var BACK_KEYS = { XF86Back: true, GoBack: true, BrowserBack: true, Escape: true };
+  /* ---------- key handling: remote + hardware keyboard ---------- */
+  // All key decisions live in MG.keyboard.planKey (pure, unit-tested):
+  // remote keys and a paired Bluetooth/USB keyboard arrive as the same
+  // DOM key events. While a text field has DOM focus, editing keys pass
+  // through to the field untouched (text lands exactly once); every
+  // action this handler takes itself is preventDefaulted, which also
+  // suppresses the browser's own Enter activation of a focused button.
+  var FIELD_SUBMIT = {
+    'sdk-token-input': 'sdk-token-save',
+    'helper-address': 'helper-fetch',
+    'helper-code': 'helper-fetch',
+    'login-identity': 'login-save',
+    'login-pairing': 'login-save',
+    'import-access': 'import-save',
+    'import-refresh': 'import-save',
+    'import-noise-host': 'import-save',
+  };
+  function submitField(field) {
+    if (field.id === 'chat-input') { sendChat(); return; }
+    var target = FIELD_SUBMIT[field.id];
+    if (target && el(target)) el(target).click();
+    else field.blur();
+  }
+
   document.addEventListener('keydown', function (event) {
-    var key = event.key;
-    if (!el('card-overlay').classList.contains('hidden')) {
-      hideCard();
-      event.preventDefault();
-      return;
-    }
-    var editing = isTextField(document.activeElement);
-    if (key === 'ArrowUp') { moveFocus('up'); event.preventDefault(); }
-    else if (key === 'ArrowDown') { moveFocus('down'); event.preventDefault(); }
-    else if (key === 'ArrowLeft' && !editing) { moveFocus('left'); event.preventDefault(); }
-    else if (key === 'ArrowRight' && !editing) { moveFocus('right'); event.preventDefault(); }
-    else if (key === 'Enter') {
-      if (focusedEl && focusedEl.tagName === 'BUTTON') {
-        focusedEl.click();
-        event.preventDefault();
+    var active = document.activeElement;
+    var editing = isTextField(active);
+    var plan = MG.keyboard.planKey(
+      { key: event.key, keyCode: event.keyCode, shiftKey: event.shiftKey },
+      {
+        cardVisible: !el('card-overlay').classList.contains('hidden'),
+        editing: editing,
+        multiline: editing && active.tagName === 'TEXTAREA',
+        focusedButton: !!(focusedEl && focusedEl.tagName === 'BUTTON'),
+        focusedField: !!focusedEl && isTextField(focusedEl),
       }
-    } else if (BACK_KEYS[key] || event.keyCode === 10009 || event.keyCode === 461) {
-      if (editing) return; // let the IME/back handling work while typing
-      if (currentScreen === 'setup') showScreen('main');
-      event.preventDefault();
+    );
+    switch (plan.action) {
+      case 'dismiss':
+        hideCard();
+        event.preventDefault();
+        break;
+      case 'nav':
+        moveFocus(plan.direction);
+        event.preventDefault();
+        break;
+      case 'focus-next':
+        focusStep(1);
+        event.preventDefault();
+        break;
+      case 'focus-prev':
+        focusStep(-1);
+        event.preventDefault();
+        break;
+      case 'activate':
+        if (focusedEl) focusedEl.click();
+        event.preventDefault();
+        break;
+      case 'edit':
+        if (focusedEl) focusedEl.focus();
+        event.preventDefault();
+        break;
+      case 'submit':
+        submitField(active);
+        event.preventDefault();
+        break;
+      case 'exit-editing':
+        // Leave the field (this also closes the TV's on-screen IME) but
+        // stay on the screen; spatial focus stays on the field, so the
+        // next Escape/Return goes back.
+        active.blur();
+        paintFocus(active);
+        event.preventDefault();
+        break;
+      case 'back':
+        if (currentScreen === 'setup') showScreen('main');
+        event.preventDefault();
+        break;
+      case 'ignore':
+        event.preventDefault();
+        break;
+      case 'passthrough':
+        break; // the field and the platform IME own this key
     }
   });
 
@@ -484,9 +570,33 @@
     el('login-state').classList.remove('error');
   });
 
+  /* ---------- voice settings ---------- */
+  function renderSpeechState() {
+    el('speech-toggle').textContent =
+      'Read messages aloud: ' + (speechCtl.isEnabled() ? 'on' : 'off');
+    var state = el('speech-state');
+    if (!speechCtl.isSupported()) {
+      state.textContent = 'This TV’s web runtime has no speech synthesis; messages will stay silent.';
+    } else if (speechCtl.voiceCount() === 0) {
+      state.textContent = 'Speech synthesis is present, but this TV exposes no voices; messages will stay silent.';
+    } else {
+      var count = speechCtl.voiceCount();
+      state.textContent = 'Speech is available (' + count + (count === 1 ? ' voice' : ' voices') + ').';
+    }
+  }
+  el('speech-toggle').addEventListener('click', function () {
+    speechCtl.setEnabled(!speechCtl.isEnabled());
+    renderSpeechState();
+  });
+  el('speech-test').addEventListener('click', function () {
+    var said = speechCtl.say('Muse Gadget TV can read messages aloud.');
+    toast(said ? 'Speaking…' : 'This TV did not speak — speech synthesis is unavailable here.');
+  });
+
   el('open-settings').addEventListener('click', function () {
     renderSdkTokenState();
     renderPairingState();
+    renderSpeechState();
     showScreen('setup');
   });
   el('setup-back').addEventListener('click', function () { showScreen('main'); });
@@ -508,17 +618,14 @@
     });
   }
   el('chat-send').addEventListener('click', sendChat);
-  el('chat-input').addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') {
-      sendChat();
-      event.preventDefault();
-    }
-    event.stopPropagation();
-  });
+  // No per-field key handler for the composer: the central planner maps
+  // Enter inside the field to submitField → sendChat, and lets every
+  // other editing key through to the field.
 
   /* ---------- boot ---------- */
   renderSdkTokenState();
   renderPairingState();
+  renderSpeechState();
   showScreen(store.getPairing() ? 'main' : 'setup');
   service.start();
 })();

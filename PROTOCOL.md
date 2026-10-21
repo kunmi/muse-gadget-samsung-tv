@@ -246,6 +246,29 @@ get a proper error result). `device.health` reports model/firmware/Tizen
 version/uptime/network/storage as available instead of the Linux load,
 memory and temperature fields, which don't exist here.
 
+Two TV-local additions sit alongside: `speech.say` and `speech.stop`
+drive the TV's own text-to-speech, and `display.text` / `display.briefing`
+accept an optional boolean `speak`. This is not an SDK surface — it uses
+the W3C Web Speech synthesis API, which the Tizen TV W3C/HTML5 API
+Reference lists in the TV profile (Tizen 4.0 through 10.0) behind the
+device feature `http://tizen.org/feature/speech.synthesis` and no
+privilege; the same reference excludes SpeechRecognition and the
+SpeechSynthesisErrorEvent interface from the profile and marks the
+utterance `pitch`/`volume` attributes unsupported, so the app sets
+neither. There is no Samsung `webapis` TTS (voiceinteraction is voice
+input), and Tizen's native TTS service is unreachable from a web app.
+Because a retail TV may expose a synthesiser with zero voices, support
+is detected at runtime (synthesiser present **and** a non-empty voice
+list) and `speech.say` reports `{spoken: false}` instead of pretending;
+the feature is declared `required="false"` in config.xml so such TVs
+still install the app. Input has a matching TV-local note: a Bluetooth
+keyboard pairs with the TV itself (Samsung's documented path: Settings
+→ General → External Device Manager → Input Device Manager → Add
+Bluetooth Keyboard) and reaches the app as standard DOM key events —
+remote Return is keyCode 10009, keyboard Escape plans identically — all
+centralised in a pure key planner (`app/js/keyboard.js`) that passes
+editing keys through to focused fields untouched.
+
 ### 6. Chat surface: sending only
 
 `sendChat` (POST /chat/stream) is ported, including the >64 KiB chunked

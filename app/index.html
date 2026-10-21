@@ -166,6 +166,29 @@
       </div>
     </div>
 
+    <div class="setup-grid">
+      <div class="setup-card wide">
+        <h2>4 · Voice</h2>
+        <p>
+          The TV can read messages and briefings aloud (text-to-speech via
+          the Tizen web runtime’s speech synthesis — no cloud involved).
+          Muse can also ask for speech per message; this switch controls
+          whether messages are read aloud <em>automatically</em>.
+        </p>
+        <div class="row">
+          <button id="speech-toggle" data-focus>Read messages aloud: off</button>
+          <button id="speech-test" data-focus>Test the voice</button>
+          <span id="speech-state" class="field-state"></span>
+        </div>
+        <p>
+          Typing with a remote is slow: a Bluetooth keyboard paired with
+          the TV (Settings → General → External Device Manager → Input
+          Device Manager → Add Bluetooth Keyboard) works in every field
+          here, and in the message box on the main screen.
+        </p>
+      </div>
+    </div>
+
     <div class="row setup-footer">
       <button id="setup-back" data-focus>Back</button>
       <span class="setup-note">Read the Gadget SDK Terms at gadgets.muse.ai/sdk-terms before use. Community gadgets pair without manufacturer verification — set up on a network you trust.</span>
@@ -199,6 +222,8 @@
   <script src="js/pairing.js"></script>
   <script src="js/web-login.js"></script>
   <script src="js/tv.js"></script>
+  <script src="js/speech.js"></script>
+  <script src="js/keyboard.js"></script>
   <script src="js/executor.js"></script>
   <script src="js/link-session.js"></script>
   <script src="js/service.js"></script>

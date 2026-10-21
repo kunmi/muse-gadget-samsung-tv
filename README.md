@@ -45,9 +45,11 @@ AES-256-GCM, SHA-256), the protobuf transport framing, and pairing v5.
 
 | Command | What it does |
 |---|---|
-| `display.text` | Show a message card (optional title) |
+| `display.text` | Show a message card (optional title; optional `speak` to read it aloud) |
 | `display.image` | Show an image from a URL (optional caption) |
-| `display.briefing` | Show a briefing card: a title and short lines |
+| `display.briefing` | Show a briefing card: a title and short lines (optional `speak`) |
+| `speech.say` | Speak text aloud (text-to-speech), with no card; the result reports whether anything was spoken |
+| `speech.stop` | Stop speech and clear queued speech |
 | `tv.volume.get` | Read volume (0–100) and mute state |
 | `tv.volume.set` / `tv.volume.up` / `tv.volume.down` | Set or step the volume |
 | `tv.mute` | Mute / unmute / toggle |
@@ -56,6 +58,45 @@ AES-256-GCM, SHA-256), the protobuf transport framing, and pairing v5.
 
 When Muse sends nothing, the TV shows a calm ambient screen: the Muse
 Gadget TV wordmark, a connection status pill, and a clock.
+
+### Reading messages aloud (text-to-speech)
+
+The app can speak `display.text` and `display.briefing` content using the
+TV web runtime's own speech synthesis (the W3C Web Speech API — the Tizen
+TV W3C/HTML5 reference lists SpeechSynthesis in the TV profile, behind
+the device feature `http://tizen.org/feature/speech.synthesis`, with no
+privilege required). Muse can request speech per message with
+`speak: true`, and the setup screen (card 4 · Voice) has a **Read
+messages aloud** switch for automatic read-aloud plus a **Test the
+voice** button. Be aware of the platform limits, which the app respects
+rather than papers over: speech *recognition* is not in the TV profile,
+utterance pitch/volume are unsupported, and whether a given TV exposes
+any voices at all depends on the model — the app detects that at runtime
+(the Voice card tells you how many voices your TV has) and simply stays
+silent where there are none. Nothing is sent to a cloud TTS service.
+
+### Using a Bluetooth keyboard
+
+Pairing a keyboard is a TV setting, not an app setting: put the keyboard
+in pairing mode, then on the TV go to **Settings → General → External
+Device Manager → Input Device Manager → Add Bluetooth Keyboard** (on some
+models the middle step is called *Keyboard Manager*). USB keyboards work
+too — just plug them in.
+
+Once paired, the keyboard works everywhere in the app:
+
+- **Type into any field** — the SDK token, the pairing-helper address and
+  code, the pasted pairing files, and the message box on the main screen.
+  Characters land in the field exactly once; the TV's on-screen keyboard
+  behaves as usual.
+- **Enter** in a field runs that field's action (Save, Fetch & log in,
+  Send…); **Enter** on a button presses it; **Space** presses it too.
+- **Arrow keys** move between controls; inside a text field they move the
+  caret instead (all four in the multi-line paste fields, left/right in
+  single-line fields; up/down still jump to the neighbouring control).
+- **Esc** first leaves the field you are typing in, then goes back a
+  screen — the same job the remote's Return key does. **Tab / Shift+Tab**
+  walk through the controls in order.
 
 Ask Muse things like:
 
@@ -185,6 +226,12 @@ up on a network you trust, as the SDK's own README advises.
   pairing once and then refuses, a wrong code is a 403 that consumes
   nothing, no response ever contains a token value, and missing or
   malformed pairing files error cleanly;
+- the speech module against a fake synthesiser (support detection with an
+  empty voice list, queue/interrupt/stop discipline, the 500-character
+  cap, the persisted read-aloud preference) and the executor's speech
+  wiring against a stub;
+- the keyboard planner's full mapping (remote keys, typing passthrough in
+  single- and multi-line fields, Enter/Esc/Tab semantics);
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
@@ -193,7 +240,10 @@ up on a network you trust, as the SDK's own README advises.
 Not verified (needs hardware and a real account): the on-TV run, the store
 install paths, live pairing, a pairing transfer from a real account (the
 real helper and the TV's real fetch code were smoke-tested together on
-localhost with fixture files), the production WebSocket edge.
+localhost with fixture files), the production WebSocket edge, speech
+actually sounding on a retail TV (whether the S95F-class runtime exposes
+voices is a hardware question), and a real Bluetooth keyboard paired with
+the TV.
 
 ## Layout
 

@@ -98,6 +98,7 @@ test('executor: COMMAND_SPECS advertises the TV set and nothing dangerous', () =
   const names = Object.keys(MG.executor.COMMAND_SPECS).sort();
   assert.deepStrictEqual(names, [
     'device.health', 'display.briefing', 'display.image', 'display.text',
+    'speech.say', 'speech.stop',
     'tv.launch_app', 'tv.mute', 'tv.volume.down', 'tv.volume.get',
     'tv.volume.set', 'tv.volume.up',
   ]);

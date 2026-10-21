@@ -13,6 +13,7 @@ require('./test-muse-api');
 require('./test-web-login');
 require('./test-helper-fetch');
 require('./test-app-modules');
+require('./test-speech-keyboard');
 require('./test-interop');
 
 const { runAll } = require('./helpers');

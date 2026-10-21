@@ -17,6 +17,13 @@
        Tizen widget access model needs an access entry for cross-origin calls. -->
   <access origin="*" subdomains="true"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="enable" encryption="disable" hwkey-event="enable"/>
+  <!-- Speech synthesis (W3C Web Speech) for display.* read-aloud and the
+       speech.* commands. The Tizen TV W3C reference lists SpeechSynthesis
+       behind this device feature and requires no privilege for it. It is
+       declared required="false" on purpose: TVs whose runtime exposes no
+       speech voices must still install the app — speech then degrades to
+       silence at runtime (see app/js/speech.js). -->
+  <feature name="http://tizen.org/feature/speech.synthesis" required="false"/>
   <!-- Muse device API + Noise WebSocket -->
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
   <!-- tv.launch_app -->
