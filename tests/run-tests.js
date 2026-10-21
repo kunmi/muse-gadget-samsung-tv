@@ -11,6 +11,7 @@ require('./test-framing');
 require('./test-pairing');
 require('./test-muse-api');
 require('./test-web-login');
+require('./test-helper-fetch');
 require('./test-app-modules');
 require('./test-interop');
 

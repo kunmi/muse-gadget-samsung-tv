@@ -42,6 +42,13 @@
  *     at least one VM. From then on the TV's whole login life is HTTPS:
  *     fetch_vms for sessions and POST /device_token/refresh for rotation
  *     (muse-api.js, service.js). No Bluetooth is involved on the TV.
+ *   - The two files reach the TV either pasted into the setup screen or
+ *     fetched from this project's pairing helper (tools/pairing-helper):
+ *     a zero-dependency script the user runs on the pairing machine,
+ *     which serves both files once over the home network to a request
+ *     carrying a one-time 6-digit code. Both paths land on the exact same
+ *     parse + verify-and-save gate below (loginWithTransfer); only the
+ *     transport differs. The helper's trust model is PROTOCOL.md, gap 1.
  *
  * There is no browser/device-code sign-in for gadgets anywhere in the SDK
  * or the community ports: the initial device credentials are only ever
@@ -128,8 +135,9 @@
   // on the TV: no pairing saved, identity untouched. Resolves
   // {record, mac, nodeId}; rejects with the parse error or pair.py's
   // ProvisionFailed (status "auth_failed" when the API leases no VM).
-  function login(deps, identityText, pairingText) {
-    var transfer = parseTransfer(identityText, pairingText);
+  // Every transfer source (paste, helper fetch) ends here: the gate
+  // accepts the parsed {mac, credentials} transfer, not a transport.
+  function loginWithTransfer(deps, transfer) {
     var mac = transfer.mac;
     function commit(save) {
       var ok = save();
@@ -142,14 +150,118 @@
       });
   }
 
+  function login(deps, identityText, pairingText) {
+    return loginWithTransfer(deps, parseTransfer(identityText, pairingText));
+  }
+
+  /* ---------- pairing helper fetch (tools/pairing-helper) ---------- */
+
+  // The helper's default port, mirrored in tools/pairing-helper.
+  var DEFAULT_HELPER_PORT = 8737;
+
+  // What a user types when the helper prints "192.168.1.42:8737": the bare
+  // address, with or without a scheme, a port, or trailing slashes. A
+  // missing port means the helper's default. Anything else (spaces, a
+  // path with substance, a non-numeric port) is a typo — say so here
+  // rather than letting the fetch fail somewhere stranger.
+  function normalizeHelperAddress(input) {
+    var text = String(input == null ? '' : input).trim();
+    if (!text) throw new Error('Enter the helper address the helper printed.');
+    text = text.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    var slash = text.indexOf('/');
+    if (slash >= 0) text = text.slice(0, slash);
+    var host = text;
+    var port = DEFAULT_HELPER_PORT;
+    var colon = text.lastIndexOf(':');
+    if (colon >= 0) {
+      host = text.slice(0, colon);
+      var portText = text.slice(colon + 1);
+      if (!/^\d+$/.test(portText) || +portText < 1 || +portText > 65535) {
+        throw new Error('The helper address has a bad port: "' + text + '".');
+      }
+      port = +portText;
+    }
+    if (!/^[A-Za-z0-9._-]+$/.test(host)) {
+      throw new Error('That does not look like a helper address: "' +
+        String(input).trim() + '".');
+    }
+    return 'http://' + host + ':' + port;
+  }
+
+  // GET the two files from the pairing helper. deps.httpGet(url) must
+  // resolve {status, body} (the TV injects an XMLHttpRequest version in
+  // app.js; the test suite injects Node's http). Resolves the parsed
+  // transfer {mac, credentials} — the helper's payload goes through the
+  // exact same file validation as a paste, so a bad payload is rejected
+  // with the same messages. Rejects with a user-readable Error for every
+  // helper answer: a wrong code (403 — the transfer is NOT used up), an
+  // already-used code (410), a wrong address (404 / unreachable), or
+  // anything unexpected.
+  function fetchFromHelper(deps, address, code) {
+    return Promise.resolve().then(function () {
+      if (typeof deps.httpGet !== 'function') {
+        throw new Error('This build cannot fetch from a helper (no HTTP client).');
+      }
+      var base = normalizeHelperAddress(address);
+      var pin = String(code == null ? '' : code).trim();
+      if (!/^\d{6}$/.test(pin)) {
+        throw new Error('Enter the 6-digit code the helper printed.');
+      }
+      var url = base + '/pairing?code=' + encodeURIComponent(pin);
+      return deps.httpGet(url).then(function (res) {
+        if (res.status === 403) {
+          throw new Error('The helper refused that code. Check the 6 digits ' +
+            'in the helper window and try again — a wrong code does not ' +
+            'use up the transfer.');
+        }
+        if (res.status === 410) {
+          throw new Error('That code was already used: the helper sends a ' +
+            'pairing only once. Run the helper again for a fresh code.');
+        }
+        if (res.status === 404) {
+          throw new Error('That address answered, but not with the pairing ' +
+            'helper. Check the address, including the port the helper printed.');
+        }
+        if (res.status !== 200) {
+          throw new Error('The helper answered with HTTP ' + res.status + '.');
+        }
+        var body;
+        try {
+          body = JSON.parse(res.body);
+        } catch (err) {
+          throw new Error('The helper sent something that is not the pairing.');
+        }
+        if (!body || typeof body !== 'object' ||
+            typeof body.identity !== 'string' ||
+            typeof body.pairing !== 'string') {
+          throw new Error('The helper sent something that is not the pairing.');
+        }
+        return parseTransfer(body.identity, body.pairing);
+      });
+    });
+  }
+
+  // The recommended login: fetch from the helper, then the same
+  // verify-and-save gate as a paste. Same deps as login(), plus httpGet.
+  function loginFromHelper(deps, address, code) {
+    return fetchFromHelper(deps, address, code).then(function (transfer) {
+      return loginWithTransfer(deps, transfer);
+    });
+  }
+
   MG.webLogin = {
     MAC_RE: MAC_RE,
     PAIRING_FIELDS: PAIRING_FIELDS,
+    DEFAULT_HELPER_PORT: DEFAULT_HELPER_PORT,
     parseIdentityJson: parseIdentityJson,
     parsePairingJson: parsePairingJson,
     parseTransfer: parseTransfer,
     nodeIdForMac: nodeIdForMac,
+    loginWithTransfer: loginWithTransfer,
     login: login,
+    normalizeHelperAddress: normalizeHelperAddress,
+    fetchFromHelper: fetchFromHelper,
+    loginFromHelper: loginFromHelper,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = MG.webLogin;

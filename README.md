@@ -25,8 +25,11 @@ AES-256-GCM, SHA-256), the protobuf transport framing, and pairing v5.
 >    service — so the Muse app cannot provision the TV directly. But a
 >    gadget's *login* is pure web (HTTPS to the Muse device API), and a
 >    completed pairing is two small files, so the TV logs in by **pairing
->    transfer**: pair any BLE-capable gadget client once, then paste its
->    `identity.json` + `pairing.json` into the TV, which verifies them
+>    transfer**: pair any BLE-capable gadget client once, then move its
+>    `identity.json` + `pairing.json` to the TV — easiest with the bundled
+>    **pairing helper** (`tools/pairing-helper`), a zero-dependency script
+>    that serves the files once to a one-time code you type on the TV;
+>    pasting the files into the TV also works. The TV verifies them
 >    against the Muse API and adopts the pairing's identity. This is the
 >    flow the community PSP port established for a device with no Bluetooth
 >    at all. The whole story, unsparingly, is in [PROTOCOL.md](PROTOCOL.md).
@@ -93,28 +96,51 @@ and run on a TV in developer mode. The project is the `app/` folder itself
 
 ## Set it up with Muse
 
+Four steps, in order, for any Muse user — nothing here is tied to a
+particular account, and nobody's credentials are baked into the app. Only
+step 2 is fiddly: it is Meta's one-time pairing, which every gadget
+(official or community) goes through exactly once.
+
 1. **Get an SDK token.** At [gadgets.muse.ai](https://gadgets.muse.ai/settings/sdk-tokens)
    (Account → SDK tokens), create a token (`mgst_…`). Every gadget needs
    one, including ones you build for yourself. Read the
    [Gadget SDK Terms](https://gadgets.muse.ai/sdk-terms) first.
-2. **Enter it on the TV.** Open Muse Gadget TV → *Setup & pairing*, paste
-   the token, Save. The TV generates its gadget identity once (a
-   `MuseGadgetTVXXXXXX` name and a `homelink-xxxxxx` node id) and keeps it
-   across unpairing — unless a web login (next step) replaces it with a
-   transferred pairing's identity.
-3. **Log in (pairing transfer).** On a computer or Raspberry Pi with
-   Bluetooth, install the SDK's Linux client and pair it with the Muse
-   app (*Settings → Devices → Developer mode*, then *Add Device*). Stop
-   that client and leave it off — only one device can use a pairing at a
-   time. Copy `identity.json` and `pairing.json` from its state folder
-   (`/var/lib/musegadget`) and paste both into the TV's *Setup & pairing*
-   → *Log in over the web*. The TV checks the credentials against the Muse
-   device API before saving — nothing is stored if the check fails — adopts
-   the pairing's identity, and from then on connects and rotates its
-   tokens by itself over HTTPS. (Pasting just the two device tokens also
-   works as a fallback, but keeps the TV's own identity; see PROTOCOL.md
-   for why the files are the reliable path.)
-4. **Use it.** Once the status pill says *Connected to Muse*, ask Muse to
+2. **Pair the official Linux SDK once.** On a Raspberry Pi or any Linux
+   computer with Bluetooth, install Meta's
+   [Linux Device SDK](https://github.com/facebookincubator/muse-gadget-sdk/blob/main/linux/README.md)
+   and pair it with the Muse app (*Settings → Devices → Developer mode*,
+   then *Add Device*). That short Bluetooth conversation is where the Muse
+   app hands over your account's device credentials — there is **no web
+   sign-in for gadgets**, so this step cannot be skipped or done in a
+   browser. When pairing finishes, **stop the SDK client on that machine
+   and leave it off**: its pairing is about to move to the TV, and only
+   one device can use a pairing at a time.
+3. **Install the TV app** (see [Install](#install) above) and launch it —
+   it opens on the setup screen. In *Setup & pairing*, card 1, paste your
+   SDK token and Save. The TV generates its own gadget identity (a
+   `MuseGadgetTVXXXXXX` name and a `homelink-xxxxxx` node id); the login
+   in the next step replaces it with the transferred pairing's identity.
+4. **Log in — fetch the pairing.** On the pairing machine, run the helper
+   (it is in this repo, needs nothing but Python 3):
+
+   ```sh
+   python3 tools/pairing-helper/pairing-helper.py
+   ```
+
+   It reads `identity.json` and `pairing.json` from the SDK state folder
+   (`/var/lib/musegadget`), prints a **helper address** and a **one-time
+   6-digit code**, and waits. On the TV — card 3, *Fetch from pairing
+   helper* — type the address and the code and press *Fetch & log in*.
+   The helper sends the pairing once, only to the request carrying that
+   code, and then stops. The TV checks the credentials against the Muse
+   device API before saving — nothing is stored if the check fails —
+   adopts the pairing's identity, and from then on connects and rotates
+   its tokens by itself over HTTPS.
+
+   No Python handy? Card 3 also accepts the two files pasted in directly,
+   and — as a last resort — the bare device-token pair; see PROTOCOL.md
+   for why the files are the reliable path.
+5. **Use it.** Once the status pill says *Connected to Muse*, ask Muse to
    show something on the TV, or type a message to Muse in the TV's
    composer.
 
@@ -151,14 +177,23 @@ up on a network you trust, as the SDK's own README advises.
   tool's validation rules, the verify-before-save gate against a mock
   device API (a rejected transfer saves nothing and adopts nothing),
   identity adoption, and rotation presenting the adopted node id;
+- the pairing-helper fetch (TV side): address/code handling and the helper
+  protocol against a mock helper — a clean fetch feeds the same gate,
+  while a refused code and a malformed payload are rejected before the
+  Muse API is ever called. The helper script has its own suite
+  (`python3 tests/test_pairing_helper.py`): the right code serves the
+  pairing once and then refuses, a wrong code is a 403 that consumes
+  nothing, no response ever contains a token value, and missing or
+  malformed pairing files error cleanly;
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
   cleanly otherwise. CI runs it in full.
 
 Not verified (needs hardware and a real account): the on-TV run, the store
-install paths, live pairing, a live pairing transfer, the production
-WebSocket edge.
+install paths, live pairing, a pairing transfer from a real account (the
+real helper and the TV's real fetch code were smoke-tested together on
+localhost with fixture files), the production WebSocket edge.
 
 ## Layout
 
@@ -168,8 +203,9 @@ app/            the Tizen web app (this is what ships in the .wgt)
   index.html    ambient screen, setup screen, display cards
   js/           protocol modules (see PROTOCOL.md for the port map)
   css/, icon.png
-tools/build-wgt.sh   builds dist/muse-gadget-tv.wgt
-tests/          Node test suite (+ the Python interop peer)
+tools/          build-wgt.sh (builds the .wgt) and pairing-helper/ — the
+                zero-dependency script that hands a pairing to the TV once
+tests/          Node test suite (+ the Python interop peer and helper tests)
 package.json    TizenBrew module manifest (packageType "app")
 PROTOCOL.md     port map, message flow, every deviation and gap
 BUILD.md        building, packaging and releasing

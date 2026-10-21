@@ -80,33 +80,61 @@
       </div>
 
       <div class="setup-card wide">
-        <h2>3 · Log in over the web (pairing transfer)</h2>
+        <h2>3 · Log in over the web</h2>
         <p>
           A gadget’s login lives on the web: sessions and token rotation run
           over HTTPS against the Muse device API. Bluetooth is used exactly
           once — by the Muse app, to hand a gadget its device credentials —
-          and a completed pairing is just two small files, so any gadget
-          client can run that step and hand the result over. That is how the
-          community PSP port logs in with no Bluetooth at all, and it is what
-          happens here. (A Tizen <em>web</em> app cannot advertise a Bluetooth
-          service, so the Muse app cannot provision this TV directly — the
-          full explanation is in the project’s <span class="mono">PROTOCOL.md</span>.)
+          and a completed pairing is just two small files, so whichever
+          gadget client ran that step can hand the result over. That is how
+          the community PSP port logs in with no Bluetooth at all, and it is
+          what happens here. (A Tizen <em>web</em> app cannot advertise a
+          Bluetooth service, so the Muse app cannot provision this TV
+          directly — the full explanation is in the project’s
+          <span class="mono">PROTOCOL.md</span>.)
         </p>
+        <p>
+          First pair the Muse Gadget SDK’s Linux client with the Muse app
+          on a computer or Raspberry Pi with Bluetooth — the README walks
+          through it — and leave that client off afterwards: only one device
+          can use a pairing at a time, and every token rotation replaces the
+          pair. Then bring the pairing here, easiest first:
+        </p>
+
+        <h3 class="option-title">Recommended: fetch from the pairing helper</h3>
         <ol class="steps">
-          <li>On a computer or Raspberry Pi with Bluetooth, install the Muse
-            Gadget SDK’s Linux client and pair it with the Muse app
-            (<em>Settings → Devices → Developer mode → Add Device</em>).</li>
-          <li>Stop that client and leave it off. Only one device can use a
-            pairing at a time, and every token rotation replaces the pair.</li>
-          <li>Copy <span class="mono">identity.json</span> and
-            <span class="mono">pairing.json</span> from its state folder
-            (<span class="mono">/var/lib/musegadget</span>) and paste both
-            files below.</li>
-          <li>Press <em>Verify &amp; log in</em>. The TV checks the credentials
-            against the Muse device API before saving anything — the same
-            check the SDK runs — adopts the pairing’s identity, and from then
-            on connects and rotates its tokens by itself over HTTPS.</li>
+          <li>On the computer or Pi where you paired, run the pairing helper
+            from this project’s repo:
+            <span class="mono">python3 tools/pairing-helper/pairing-helper.py</span></li>
+          <li>It prints a helper address and a 6-digit code. Type both below
+            and press <em>Fetch &amp; log in</em>.</li>
+          <li>The helper sends the pairing once, only to the request with
+            that code, and then stops. Run it once, at the TV, on a home
+            network you trust.</li>
         </ol>
+        <label class="field-label" for="helper-address">Helper address</label>
+        <input id="helper-address" type="text" placeholder="192.168.1.42:8737" autocomplete="off" spellcheck="false">
+        <label class="field-label" for="helper-code">6-digit code</label>
+        <input id="helper-code" type="text" inputmode="numeric" placeholder="042917" autocomplete="off" spellcheck="false">
+        <div class="row">
+          <button id="helper-fetch" data-focus>Fetch &amp; log in</button>
+          <span id="helper-state" class="field-state"></span>
+        </div>
+        <p>
+          Whichever way the pairing arrives, the TV checks the credentials
+          against the Muse device API before saving anything — the same
+          check the SDK runs — adopts the pairing’s identity, and from then
+          on connects and rotates its tokens by itself over HTTPS.
+        </p>
+
+        <h3 class="option-title">Or: paste the two pairing files</h3>
+        <p>
+          Copy <span class="mono">identity.json</span> and
+          <span class="mono">pairing.json</span> from the pairing client’s
+          state folder (<span class="mono">/var/lib/musegadget</span>) and
+          paste both files below. Same check, same result — just more
+          typing on a TV remote.
+        </p>
         <label class="field-label" for="login-identity">identity.json</label>
         <textarea id="login-identity" rows="2" autocomplete="off" spellcheck="false" placeholder='{"mac": "aa:bb:cc:dd:ee:ff"}'></textarea>
         <label class="field-label" for="login-pairing">pairing.json</label>
@@ -117,7 +145,7 @@
           <span id="login-state" class="field-state"></span>
         </div>
 
-        <h3 class="fallback-title">Fallback: paste the two device tokens</h3>
+        <h3 class="fallback-title">Last resort: paste the two device tokens</h3>
         <p>
           The same credentials as two fields, without the files. With this
           path the TV keeps its own identity (card 2) — but a pairing’s

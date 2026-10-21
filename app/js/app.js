@@ -326,46 +326,104 @@
     }
   });
 
-  // Web login (pairing transfer): the primary onboarding path. Parses the
-  // two state files of a completed SDK pairing, verifies the credentials
-  // with the device API, adopts the pairing's identity and only then saves
-  // (web-login.js). The runtime is rebuilt so the service registers and
-  // rotates tokens as the adopted identity, not the TV's previous one.
+  /* ---------- web login (pairing transfer) ---------- */
+  // The primary onboarding path, in two transports that land on the same
+  // gate in web-login.js: fetch the pairing files from the pairing helper
+  // (tools/pairing-helper) running on the pairing machine, or paste the
+  // files. Either way the credentials are verified with the device API,
+  // the pairing's identity is adopted and only then is anything saved;
+  // the runtime is rebuilt so the service registers and rotates tokens as
+  // the adopted identity, not the TV's previous one.
+
+  // web-login.js's HTTP client for the helper fetch: resolves
+  // {status, body}. Reaching the helper is a plain LAN request; a failure
+  // to connect at all gets a message written for someone holding a remote.
+  function httpGetText(url) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.timeout = 20000;
+      xhr.onload = function () {
+        resolve({ status: xhr.status, body: xhr.responseText });
+      };
+      xhr.onerror = function () {
+        reject(new Error('Could not reach the helper. Check the address, ' +
+          'and that the TV and the computer are on the same network.'));
+      };
+      xhr.ontimeout = function () {
+        reject(new Error('The helper did not answer in time. Is it still running?'));
+      };
+      xhr.send();
+    });
+  }
+
+  function loginDeps() {
+    var sdkToken = null;
+    try { sdkToken = store.getSdkToken(); } catch (err) { sdkToken = null; }
+    return {
+      fetchVms: MG.museApi.fetchVms,
+      apiRoot: MG.museApi.apiRoot,
+      store: store,
+      sdkToken: sdkToken,
+      nowSeconds: function () { return Date.now() / 1000; },
+      httpGet: httpGetText,
+      adoptIdentity: function (mac) {
+        identity = MG.identity.adoptMac(storage, mac);
+        return identity;
+      },
+    };
+  }
+
+  function onLoginSuccess(state, result) {
+    state.textContent = 'Logged in as ' + result.nodeId +
+      '. The TV now connects to Muse by itself.';
+    state.classList.remove('error');
+    renderIdentity();
+    renderPairingState();
+    restartRuntime();
+    showScreen('main');
+  }
+
+  function onLoginFailure(state, err) {
+    state.textContent = 'Login failed: ' + (err && err.status ? err.status : err.message) +
+      '. Nothing was saved.';
+    state.classList.add('error');
+  }
+
+  el('helper-fetch').addEventListener('click', function () {
+    var state = el('helper-state');
+    state.textContent = 'Fetching the pairing from the helper, then checking it with Muse…';
+    state.classList.remove('error');
+    Promise.resolve().then(function () {
+      return MG.webLogin.loginFromHelper(
+        loginDeps(),
+        el('helper-address').value,
+        el('helper-code').value
+      );
+    }).then(function (result) {
+      el('helper-code').value = '';
+      onLoginSuccess(state, result);
+    }).catch(function (err) {
+      onLoginFailure(state, err);
+    });
+  });
+
   el('login-save').addEventListener('click', function () {
     var state = el('login-state');
     state.textContent = 'Checking the credentials with Muse…';
     state.classList.remove('error');
-    var sdkToken = null;
-    try { sdkToken = store.getSdkToken(); } catch (err) { sdkToken = null; }
     Promise.resolve().then(function () {
       return MG.webLogin.login(
-        {
-          fetchVms: MG.museApi.fetchVms,
-          apiRoot: MG.museApi.apiRoot,
-          store: store,
-          sdkToken: sdkToken,
-          nowSeconds: function () { return Date.now() / 1000; },
-          adoptIdentity: function (mac) {
-            identity = MG.identity.adoptMac(storage, mac);
-            return identity;
-          },
-        },
+        loginDeps(),
         el('login-identity').value,
         el('login-pairing').value
       );
     }).then(function (result) {
-      state.textContent = 'Logged in as ' + result.nodeId +
-        '. The TV now connects to Muse by itself.';
       el('login-identity').value = '';
       el('login-pairing').value = '';
-      renderIdentity();
-      renderPairingState();
-      restartRuntime();
-      showScreen('main');
+      onLoginSuccess(state, result);
     }).catch(function (err) {
-      state.textContent = 'Login failed: ' + (err && err.status ? err.status : err.message) +
-        '. Nothing was saved.';
-      state.classList.add('error');
+      onLoginFailure(state, err);
     });
   });
 

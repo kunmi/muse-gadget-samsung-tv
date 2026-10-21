@@ -23,6 +23,7 @@ transpiler, no `node_modules` at runtime.
 
 ```sh
 node tests/run-tests.js           # or: npm test
+python3 tests/test_pairing_helper.py   # the pairing helper's suite
 ```
 
 Everything runs offline. The interop test (JS client ↔ the SDK's Python

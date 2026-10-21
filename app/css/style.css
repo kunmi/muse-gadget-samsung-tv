@@ -156,6 +156,7 @@ textarea.focused {
 .setup-card textarea { margin-bottom: 16px; }
 .setup-card .steps { font-size: 26px; line-height: 1.5; color: #c6d2ec; margin: 0 0 16px; padding-left: 38px; }
 .setup-card .steps li { margin-bottom: 8px; }
+.setup-card h3.option-title { font-size: 30px; margin: 28px 0 12px; color: #ffb454; }
 .setup-card h3.fallback-title { font-size: 30px; margin: 28px 0 12px; color: #ffb454; }
 .row { display: flex; align-items: center; gap: 20px; }
 .field-state { font-size: 26px; color: #9fe8bb; }

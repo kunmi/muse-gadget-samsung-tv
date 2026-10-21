@@ -12,6 +12,10 @@ pairing.json
 .env
 .env.*
 
+# Python byproducts (helper + its tests)
+__pycache__/
+*.pyc
+
 # Editor / OS noise
 .DS_Store
 .idea/
