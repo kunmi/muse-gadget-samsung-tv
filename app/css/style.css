@@ -123,6 +123,142 @@ textarea.focused {
   max-width: 1100px;
 }
 
+/* ---------- Bloop, the ambient avatar (app/js/avatar.js) ----------
+ * All animation is transform/opacity only, keyed off the container's
+ * data-state attribute, which the avatar state machine maintains:
+ * sleep / idle / wave / busy / speaking. SVG groups that CSS rotates or
+ * scales need transform-box: fill-box so their transform origin is
+ * their own bounding box, not the whole canvas. */
+.avatar {
+  position: absolute;
+  right: 104px;
+  top: 288px;
+  width: 330px;
+  height: 330px;
+  pointer-events: none;
+}
+.avatar svg { width: 100%; height: 100%; overflow: visible; }
+.avatar[data-state="sleep"] svg { opacity: 0.55; }
+
+.bloop-float { animation: bloop-bob 5.2s ease-in-out infinite; }
+.avatar[data-state="sleep"] .bloop-float { animation-duration: 8.5s; }
+.avatar[data-state="wave"] .bloop-float { animation-duration: 1.15s; }
+@keyframes bloop-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-11px); }
+}
+.avatar[data-state="sleep"] .bloop-shadow { opacity: 0.14; }
+
+/* blinking (on the blink wrapper) + occasional look-around (pupils) */
+.bloop-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bloop-blink 4.8s linear infinite;
+}
+@keyframes bloop-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94% { transform: scaleY(0.08); }
+  97% { transform: scaleY(1); }
+}
+.bloop-pupils { animation: bloop-glance 9s ease-in-out infinite; }
+@keyframes bloop-glance {
+  0%, 17% { transform: translateX(0); }
+  23%, 33% { transform: translateX(5px); }
+  39%, 61% { transform: translateX(0); }
+  67%, 77% { transform: translateX(-5px); }
+  83%, 100% { transform: translateX(0); }
+}
+
+/* busy: focused (narrowed) eyes */
+.avatar[data-state="busy"] .bloop-eyes-open {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(0.74);
+}
+
+/* sleep: open eyes off, closed eyes on, drifting Zs */
+.avatar[data-state="sleep"] .bloop-eyes-open { opacity: 0; }
+.avatar[data-state="sleep"] .bloop-eyes-closed { opacity: 1; }
+.avatar[data-state="sleep"] .bloop-zzz { animation: bloop-zzz 3.6s ease-out infinite; }
+.avatar[data-state="sleep"] .bloop-zzz-2 { animation-delay: 1.4s; }
+@keyframes bloop-zzz {
+  0% { opacity: 0; transform: translateY(7px); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-17px); }
+}
+
+/* wave: the right arm lifts beside the head and wags */
+.bloop-arm-right {
+  transform-box: fill-box;
+  transform-origin: 12% 6%;
+}
+.avatar[data-state="wave"] .bloop-arm-right {
+  animation: bloop-wave 0.5s ease-in-out infinite alternate;
+}
+@keyframes bloop-wave {
+  from { transform: rotate(-66deg); }
+  to { transform: rotate(-114deg); }
+}
+
+/* busy: both arms type, the orb pulses, progress dots bounce */
+.bloop-arm-left {
+  transform-box: fill-box;
+  transform-origin: 88% 6%;
+}
+.avatar[data-state="busy"] .bloop-arm-left {
+  animation: bloop-type-left 0.16s ease-in-out infinite alternate;
+}
+.avatar[data-state="busy"] .bloop-arm-right {
+  animation: bloop-type-right 0.16s ease-in-out infinite alternate;
+}
+@keyframes bloop-type-left {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(8deg); }
+}
+@keyframes bloop-type-right {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-8deg); }
+}
+.bloop-orb {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.avatar[data-state="busy"] .bloop-orb {
+  animation: bloop-orb-pulse 0.7s ease-in-out infinite alternate;
+}
+.avatar[data-state="busy"] .bloop-orb-halo { opacity: 0.45; }
+@keyframes bloop-orb-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.3); }
+}
+.avatar[data-state="busy"] .bloop-dots { opacity: 1; }
+.bloop-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.avatar[data-state="busy"] .bloop-dot { animation: bloop-dot 0.9s ease-in-out infinite; }
+.avatar[data-state="busy"] .bloop-dot-2 { animation-delay: 0.15s; }
+.avatar[data-state="busy"] .bloop-dot-3 { animation-delay: 0.3s; }
+@keyframes bloop-dot {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* speaking: the smile swaps for a lip-flapping mouth */
+.bloop-mouth-talk {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.avatar[data-state="speaking"] .bloop-mouth-smile { opacity: 0; }
+.avatar[data-state="speaking"] .bloop-mouth-talk {
+  opacity: 1;
+  animation: bloop-flap 0.17s ease-in-out infinite alternate;
+}
+@keyframes bloop-flap {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1.25); }
+}
+
 .ambient-footer { display: flex; flex-direction: column; gap: 20px; }
 .composer { display: flex; gap: 20px; }
 .composer input { flex: 1; }

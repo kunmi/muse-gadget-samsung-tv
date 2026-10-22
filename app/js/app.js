@@ -46,6 +46,12 @@
   var store = new MG.store.Store(storage);
   var version = MG.museApi.VERSION;
 
+  /* ---------- Bloop, the ambient avatar ---------- */
+  // The state machine is pure (avatar.js); app.js feeds it the app's
+  // events — service state, command execution, composer sends, speech —
+  // and mount() mirrors the resolved state onto the ambient screen.
+  var avatarCtl = MG.avatar.create();
+
   /* ---------- speech (text-to-speech) ---------- */
   // Feature-detected by MG.speech: a TV whose runtime exposes no
   // synthesiser or no voices simply stays silent.
@@ -54,6 +60,7 @@
     Utterance: typeof window.SpeechSynthesisUtterance !== 'undefined'
       ? window.SpeechSynthesisUtterance : null,
     storage: storage,
+    onSpeakingChange: function (speakingNow) { avatarCtl.setSpeaking(speakingNow); },
   });
 
   function el(id) { return document.getElementById(id); }
@@ -126,6 +133,26 @@
   // node id, so the old objects would keep speaking for the wrong device.
   var executor = null;
   var service = null;
+  // Bloop works while a link command executes: display.* arrivals also
+  // earn a wave once the command completes (avatar.js decides).
+  function runCommandTracked(command, params, timeoutMs) {
+    avatarCtl.commandStarted(command);
+    function done() { avatarCtl.commandFinished(command); }
+    try {
+      var result = executor.run(command, params, timeoutMs);
+      if (result && typeof result.then === 'function') {
+        return result.then(
+          function (value) { done(); return value; },
+          function (err) { done(); throw err; }
+        );
+      }
+      done();
+      return result;
+    } catch (err) {
+      done();
+      throw err;
+    }
+  }
   function buildRuntime() {
     executor = MG.executor.createExecutor(ui, {
       startedAt: startedAt,
@@ -136,13 +163,14 @@
     service = new MG.service.GadgetService({
       identity: identity,
       store: store,
-      runCommand: executor.run,
+      runCommand: runCommandTracked,
       commands: MG.executor.COMMAND_SPECS,
       version: version,
       log: function (msg) {
         if (window.console) console.log('[musegadget] ' + msg);
       },
       onState: function (state, detail) {
+        avatarCtl.serviceState(state);
         if (state === 'unpaired') {
           setPill('Not paired', 'status-warn');
           renderPairingState();
@@ -164,6 +192,7 @@
     service.start();
   }
   buildRuntime();
+  MG.avatar.mount(el('avatar'), avatarCtl);
 
   function toast(message) {
     var t = el('toast');
@@ -606,7 +635,10 @@
     var input = el('chat-input');
     var text = input.value.trim();
     if (!text) return;
+    // Bloop shows "busy" from the send until the send's result returns.
+    avatarCtl.beginWork();
     service.sendChat(text).then(function (result) {
+      avatarCtl.endWork();
       if (result.ok) {
         input.value = '';
         toast('Sent to Muse.');
@@ -614,6 +646,7 @@
         toast('Muse refused the message (HTTP ' + result.status + ').');
       }
     }).catch(function (err) {
+      avatarCtl.endWork();
       toast(err.message || 'Not connected to Muse.');
     });
   }

@@ -50,6 +50,11 @@
  * A new utterance while one is speaking replaces the waiting one; with
  * {interrupt:true} it cancels the current speech and starts immediately.
  * Spoken text is capped at MAX_CHARS characters.
+ *
+ * deps.onSpeakingChange(bool), when supplied, fires exactly on the
+ * speaking/not-speaking transitions (an interrupt that swaps one
+ * utterance for another is not a transition). The ambient avatar uses
+ * it to lip-flap while the TV talks.
  */
 (function (root) {
   'use strict';
@@ -81,6 +86,17 @@
 
     var current = null; // utterance being spoken
     var pending = null; // text of the one waiting utterance, if any
+
+    var onSpeakingChange = typeof deps.onSpeakingChange === 'function'
+      ? deps.onSpeakingChange : null;
+    var speakingNotified = false;
+    function noteSpeaking(value) {
+      if (speakingNotified === value) return;
+      speakingNotified = value;
+      if (onSpeakingChange) {
+        try { onSpeakingChange(value); } catch (err) { /* listener's problem */ }
+      }
+    }
 
     function isSupported() {
       return !!(
@@ -146,6 +162,7 @@
       utterance.onend = function () { finish(utterance); };
       utterance.onerror = function () { finish(utterance); };
       synthesis.speak(utterance);
+      noteSpeaking(true);
     }
 
     function finish(utterance) {
@@ -155,7 +172,9 @@
         var next = pending;
         pending = null;
         startUtterance(next);
+        return;
       }
+      noteSpeaking(false);
     }
 
     // Explicit speech. Returns true when an utterance was handed to the
@@ -188,6 +207,7 @@
     function stop() {
       pending = null;
       current = null;
+      noteSpeaking(false);
       if (isSupported()) {
         try { synthesis.cancel(); } catch (err) { /* best effort */ }
       }

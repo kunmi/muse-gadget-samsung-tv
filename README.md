@@ -59,6 +59,30 @@ AES-256-GCM, SHA-256), the protobuf transport framing, and pairing v5.
 When Muse sends nothing, the TV shows a calm ambient screen: the Muse
 Gadget TV wordmark, a connection status pill, and a clock.
 
+### Meet Bloop, the ambient avatar
+
+The ambient screen has a resident: **Bloop**, a small floating
+bubble-bot drawn entirely in code (one inline SVG in
+`app/js/avatar.js` — no image assets). Bloop is this project's own
+original character; Meta's SDK mascot artwork is not covered by that
+project's Apache license and is not used here (see the License section).
+
+Bloop shows what the gadget is doing, in a state machine with one
+visible state at a time:
+
+| State | When | What Bloop does |
+|---|---|---|
+| **Sleep** | Not connected (unpaired, reconnecting, stopped) | Dimmed, eyes closed, a drifting "Z", slow bob |
+| **Idle** | Connected, nothing happening | Gentle floating, blinking, an occasional look around |
+| **Wave** | A few seconds on every fresh connection, and when a `display.*` card arrives | Lifts an arm and waves (a wave requested mid-work or mid-speech is remembered and played once things are calm) |
+| **Busy** | A composer message is in flight, or a link command is executing | Focused eyes, typing arms, bouncing progress dots, pulsing antenna orb; never flashes for less than ~1 s |
+| **Speaking** | The TV is reading something aloud (text-to-speech) | The mouth lip-flaps in time with the speech module's speaking state |
+
+All animation is CSS transform/opacity keyed off the state, so it stays
+cheap on a TV web runtime. The state machine itself is pure and
+unit-tested (trigger mapping included); how Bloop actually looks and
+moves on a real TV is, like the rest of the on-TV run, unverified.
+
 ### Reading messages aloud (text-to-speech)
 
 The app can speak `display.text` and `display.briefing` content using the
@@ -228,10 +252,15 @@ up on a network you trust, as the SDK's own README advises.
   malformed pairing files error cleanly;
 - the speech module against a fake synthesiser (support detection with an
   empty voice list, queue/interrupt/stop discipline, the 500-character
-  cap, the persisted read-aloud preference) and the executor's speech
-  wiring against a stub;
+  cap, the persisted read-aloud preference, the speaking start/end hook)
+  and the executor's speech wiring against a stub;
 - the keyboard planner's full mapping (remote keys, typing passthrough in
   single- and multi-line fields, Enter/Esc/Tab semantics);
+- the avatar state machine against injected timers (connect/wave/idle,
+  nested busy work with a minimum on-screen spell, speaking priority,
+  display.* arrival waves vs. silent housekeeping commands, disconnect
+  dropping to sleep) plus its generated SVG markup and DOM state
+  mirroring;
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
@@ -242,8 +271,8 @@ install paths, live pairing, a pairing transfer from a real account (the
 real helper and the TV's real fetch code were smoke-tested together on
 localhost with fixture files), the production WebSocket edge, speech
 actually sounding on a retail TV (whether the S95F-class runtime exposes
-voices is a hardware question), and a real Bluetooth keyboard paired with
-the TV.
+voices is a hardware question), a real Bluetooth keyboard paired with
+the TV, and Bloop's animation as rendered by a real TV's web runtime.
 
 ## Layout
 

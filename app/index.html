@@ -27,6 +27,9 @@
       <div id="ambient-hint" class="ambient-hint">Your Muse can show messages, images and briefings here.</div>
     </div>
 
+    <!-- Bloop, the ambient avatar (app/js/avatar.js draws the SVG here) -->
+    <div id="avatar" class="avatar" data-state="sleep" aria-hidden="true"></div>
+
     <footer class="ambient-footer">
       <div class="composer">
         <input id="chat-input" type="text" placeholder="Send a message to Muse…" autocomplete="off">
@@ -224,6 +227,7 @@
   <script src="js/tv.js"></script>
   <script src="js/speech.js"></script>
   <script src="js/keyboard.js"></script>
+  <script src="js/avatar.js"></script>
   <script src="js/executor.js"></script>
   <script src="js/link-session.js"></script>
   <script src="js/service.js"></script>
