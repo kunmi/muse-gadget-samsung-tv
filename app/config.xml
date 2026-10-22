@@ -24,8 +24,20 @@
        speech voices must still install the app — speech then degrades to
        silence at runtime (see app/js/speech.js). -->
   <feature name="http://tizen.org/feature/speech.synthesis" required="false"/>
+  <!-- Speech recognition, for the voice-input experiment (app/js/voice.js).
+       Declared required="false" for the same reason: a TV or runtime
+       without platform speech recognition must still install the app —
+       voice input then reports itself unavailable at runtime. -->
+  <feature name="http://tizen.org/feature/speech.recognition" required="false"/>
   <!-- Muse device API + Noise WebSocket -->
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <!-- Voice input experiment: Samsung Product API webapis.voiceinteraction
+       (public privilege, API since TV 6.0, title selection since 6.5).
+       This declaration is what the .wgt install carries; it cannot help
+       the TizenBrew path, where the host app's own manifest decides
+       which privileges apply — voice.js feature-detects the API either
+       way and surfaces any refusal (e.g. a SecurityError) in the UI. -->
+  <tizen:privilege name="http://developer.samsung.com/privilege/voicecontrol"/>
   <!-- tv.launch_app -->
   <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
   <!-- tizen.tvaudiocontrol volume/mute (Samsung TV API) -->

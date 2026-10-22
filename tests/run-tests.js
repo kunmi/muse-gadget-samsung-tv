@@ -15,6 +15,7 @@ require('./test-helper-fetch');
 require('./test-app-modules');
 require('./test-speech-keyboard');
 require('./test-avatar');
+require('./test-voice');
 require('./test-interop');
 
 const { runAll } = require('./helpers');

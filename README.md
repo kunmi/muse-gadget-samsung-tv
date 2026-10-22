@@ -122,6 +122,56 @@ Once paired, the keyboard works everywhere in the app:
   screen — the same job the remote's Return key does. **Tab / Shift+Tab**
   walk through the controls in order.
 
+### Voice input (experimental)
+
+An experiment, labelled as one in the app and here. The precedent is
+real: on modern Samsung TVs the YouTube app receives free-form dictated
+search text — Samsung's own support flow grants the app microphone
+permission and lets the platform's speech recognition deliver the
+query. The public developer surface for this is Samsung's
+**VoiceInteraction** Product API (`webapis.voiceinteraction`, public
+privilege `http://developer.samsung.com/privilege/voicecontrol`, since
+TV 6.0; title selection since 6.5): an app registers callbacks, the
+TV's voice assistant asks the app what it is doing before every
+utterance (`onupdatestate`), and utterances come back as structured
+callbacks — including `ontitleselection(title)`, documented as
+receiving "the string input via voice".
+
+What is **not** known is whether any of this reaches a *sideloaded*
+app: whether the runtime exposes `webapis` to it at all, whether the
+voicecontrol privilege is granted to a developer-signed package, and
+whether "Search"-state utterances deliver free text to a
+non-partner app. So `app/js/voice.js` is built as a probe:
+
+- **Feature-detected throughout.** No `webapis.voiceinteraction` →
+  the feature reports "unavailable" and is a clean no-op. Every
+  platform call is wrapped; a refusal (a `SecurityError` is the
+  expected signature of an ungranted privilege) is caught and shown,
+  never hidden and never faked. There is no simulated dictation.
+- **Declarations (`.wgt` path only).** `config.xml` declares the
+  `voicecontrol` privilege and the
+  `http://tizen.org/feature/speech.recognition` feature
+  (`required="false"`, matching how `speech.synthesis` is handled), so
+  an Apps2Samsung/Tizen Studio install carries them. Under
+  **TizenBrew** the host app's manifest decides which privileges and
+  product APIs apply — this app's `config.xml` cannot change that —
+  so the API may simply be absent there; the module degrades
+  gracefully and says so.
+- **Behaviour.** The app registers its callbacks at boot, reports the
+  "Search" app-state while the composer is focused ("Setting" on the
+  setup screen, "Home" on the ambient screen), and offers the composer
+  ("Message to Muse") as its voice-addressable content. Any string
+  the platform delivers is placed in the message box as an **unsent
+  draft** for review — voice never sends anything by itself. The
+  **Voice** button beside the composer (and **Try voice input** on
+  setup card 5) calls the API's `listen()`.
+- **Visible results.** The status line under the composer, and setup
+  card 5 · Voice input, show the detection state (API present?
+  registered? `getVersion()`?) and the last voice event more or less
+  verbatim: heard text, a state change, an unhandled navigation, or
+  the exact refusal. One test on a real TV will show what the platform
+  actually grants; until then this is **unverified on real hardware**.
+
 Ask Muse things like:
 
 > Put a note on the living-room TV: "Dinner is at 7."
@@ -261,6 +311,11 @@ up on a network you trust, as the SDK's own README advises.
   display.* arrival waves vs. silent housekeeping commands, disconnect
   dropping to sleep) plus its generated SVG markup and DOM state
   mirroring;
+- the voice-input controller against a fake `webapis.voiceinteraction`
+  (detection with the API absent/partial/present, callback
+  registration and privilege-refusal surfacing, the app-state mapping,
+  content-context building, dictated text routed to the composer draft
+  and never sent, listen() outcomes);
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
@@ -272,7 +327,9 @@ real helper and the TV's real fetch code were smoke-tested together on
 localhost with fixture files), the production WebSocket edge, speech
 actually sounding on a retail TV (whether the S95F-class runtime exposes
 voices is a hardware question), a real Bluetooth keyboard paired with
-the TV, and Bloop's animation as rendered by a real TV's web runtime.
+the TV, Bloop's animation as rendered by a real TV's web runtime, and
+the whole voice-input experiment (whether a sideloaded app is granted
+the VoiceInteraction API and any dictated text at all).
 
 ## Layout
 

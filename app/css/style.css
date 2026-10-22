@@ -269,6 +269,9 @@ textarea.focused {
 }
 .identity-line { font-size: 26px; color: #5f719c; }
 .toast { font-size: 28px; color: #ffd9a0; min-height: 36px; }
+/* voice input experiment: last voice event, shown under the composer */
+.voice-status { font-size: 26px; color: #9fb2d8; min-height: 34px; }
+.voice-last-event { color: #9fb2d8 !important; }
 
 /* ---------- setup screen ---------- */
 #screen-setup { overflow-y: auto; }

@@ -12,6 +12,13 @@
   <meta name="viewport" content="width=1920, user-scalable=no">
   <title>Muse Gadget TV</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- Samsung Product API (webapis), for the voice-input experiment in
+       js/voice.js. The $WEBAPIS path is rewritten by the Tizen runtime
+       for packaged apps; anywhere else (a desktop browser, and likely
+       TizenBrew, whose host serves this page) it simply fails to load —
+       which is harmless: a failed script load stops nothing else, and
+       voice.js feature-detects window.webapis before touching it. -->
+  <script src="$WEBAPIS/webapis/webapis.js"></script>
 </head>
 <body>
   <!-- ============ Ambient / main screen ============ -->
@@ -33,8 +40,10 @@
     <footer class="ambient-footer">
       <div class="composer">
         <input id="chat-input" type="text" placeholder="Send a message to Muse…" autocomplete="off">
+        <button id="voice-listen" data-focus>Voice</button>
         <button id="chat-send" data-focus>Send</button>
       </div>
+      <div id="voice-status" class="voice-status" aria-live="polite"></div>
       <div class="footer-row">
         <span id="identity-line" class="identity-line"></span>
         <button id="open-settings" data-focus>Setup &amp; pairing</button>
@@ -190,6 +199,24 @@
           here, and in the message box on the main screen.
         </p>
       </div>
+
+      <div class="setup-card wide">
+        <h2>5 · Voice input (experimental)</h2>
+        <p>
+          An experiment, not a promise. Some TV apps (YouTube is the
+          known example) receive dictated search text from the TV's own
+          speech recognition, via Samsung's VoiceInteraction API. Whether
+          a sideloaded app like this one is granted the same is unproven —
+          this card and the status line under the message box report
+          exactly what the TV grants, including refusals. Anything the
+          assistant delivers lands in the message box as an unsent draft.
+        </p>
+        <div class="row">
+          <button id="voice-test" data-focus>Try voice input</button>
+          <span id="voice-input-state" class="field-state"></span>
+        </div>
+        <p id="voice-last-event" class="voice-last-event">No voice events yet.</p>
+      </div>
     </div>
 
     <div class="row setup-footer">
@@ -228,6 +255,7 @@
   <script src="js/speech.js"></script>
   <script src="js/keyboard.js"></script>
   <script src="js/avatar.js"></script>
+  <script src="js/voice.js"></script>
   <script src="js/executor.js"></script>
   <script src="js/link-session.js"></script>
   <script src="js/service.js"></script>

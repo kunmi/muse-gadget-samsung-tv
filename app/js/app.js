@@ -52,6 +52,34 @@
   // and mount() mirrors the resolved state onto the ambient screen.
   var avatarCtl = MG.avatar.create();
 
+  /* ---------- voice input (experiment) ---------- */
+  // A probe of Samsung's VoiceInteraction API (voice.js): it registers
+  // callbacks if the runtime exposes them and reports every outcome —
+  // including "API not present" and privilege refusals — in the status
+  // line under the composer and on setup card 5. Text the platform
+  // delivers becomes an unsent composer draft, never an auto-send.
+  function renderVoiceStatus(text) {
+    el('voice-status').textContent = text;
+    el('voice-last-event').textContent = 'Last voice event: ' + text;
+  }
+  var voiceCtl = MG.voice.create({
+    webapis: typeof window.webapis !== 'undefined' ? window.webapis : null,
+    getContext: function () {
+      return {
+        screen: currentScreen,
+        composerFocused: focusedEl === el('chat-input') ||
+          document.activeElement === el('chat-input'),
+      };
+    },
+    setDraft: function (text) {
+      var input = el('chat-input');
+      input.value = text;
+      if (currentScreen !== 'main') showScreen('main');
+      setFocus(input);
+    },
+    onStatus: renderVoiceStatus,
+  });
+
   /* ---------- speech (text-to-speech) ---------- */
   // Feature-detected by MG.speech: a TV whose runtime exposes no
   // synthesiser or no voices simply stays silent.
@@ -622,10 +650,35 @@
     toast(said ? 'Speaking…' : 'This TV did not speak — speech synthesis is unavailable here.');
   });
 
+  /* ---------- voice input settings (experiment) ---------- */
+  function renderVoiceState() {
+    var d = voiceCtl.describe();
+    var state = el('voice-input-state');
+    if (!d.available) {
+      state.textContent = 'VoiceInteraction API not present in this runtime — voice input unavailable here.';
+      state.classList.add('error');
+    } else if (d.registered) {
+      state.textContent = 'Registered with the TV voice assistant' +
+        (d.version ? ' (VoiceInteraction ' + d.version + ')' : '') + '.';
+      state.classList.remove('error');
+    } else {
+      state.textContent = 'API present' + (d.version ? ' (' + d.version + ')' : '') +
+        ', but registration failed: ' + (d.error || 'unknown error') + '.';
+      state.classList.add('error');
+    }
+    var last = voiceCtl.lastStatus();
+    el('voice-last-event').textContent = last
+      ? 'Last voice event: ' + last
+      : 'No voice events yet.';
+  }
+  el('voice-listen').addEventListener('click', function () { voiceCtl.listen(); });
+  el('voice-test').addEventListener('click', function () { voiceCtl.listen(); });
+
   el('open-settings').addEventListener('click', function () {
     renderSdkTokenState();
     renderPairingState();
     renderSpeechState();
+    renderVoiceState();
     showScreen('setup');
   });
   el('setup-back').addEventListener('click', function () { showScreen('main'); });
@@ -659,6 +712,8 @@
   renderSdkTokenState();
   renderPairingState();
   renderSpeechState();
+  voiceCtl.start();
+  renderVoiceState();
   showScreen(store.getPairing() ? 'main' : 'setup');
   service.start();
 })();
