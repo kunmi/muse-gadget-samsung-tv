@@ -38,6 +38,7 @@
     <div id="avatar" class="avatar" data-state="sleep" aria-hidden="true"></div>
 
     <footer class="ambient-footer">
+      <div id="podcast-indicator" class="podcast-indicator hidden">● Podcast mode on — narrating</div>
       <div class="composer">
         <input id="chat-input" type="text" placeholder="Send a message to Muse…" autocomplete="off">
         <button id="voice-listen" data-focus>Voice</button>
@@ -46,7 +47,10 @@
       <div id="voice-status" class="voice-status" aria-live="polite"></div>
       <div class="footer-row">
         <span id="identity-line" class="identity-line"></span>
-        <button id="open-settings" data-focus>Setup &amp; pairing</button>
+        <span class="footer-buttons">
+          <button id="podcast-toggle-main" data-focus>Podcast mode: off</button>
+          <button id="open-settings" data-focus>Setup &amp; pairing</button>
+        </span>
       </div>
       <div id="toast" class="toast" aria-live="polite"></div>
     </footer>
@@ -217,6 +221,29 @@
         </div>
         <p id="voice-last-event" class="voice-last-event">No voice events yet.</p>
       </div>
+
+      <div class="setup-card wide">
+        <h2>6 · Podcast mode</h2>
+        <p>
+          A narrated ambient briefing channel: a soft generated music
+          bed (synthesised in the app — no audio files) under spoken
+          narration. While it is on, incoming messages and briefings
+          are read aloud (whether or not card 4's read-aloud switch is
+          on — the two settings are separate), short activity lines are
+          spoken ("Connected to Muse", "Working on it", "Done",
+          rate-limited so it never chatters), and a message that reads
+          like a permission or approval request is announced with
+          "Attention" and shown on a highlighted card. It can only
+          narrate what actually reaches this TV — approval prompts
+          shown only in the Muse app cannot be narrated here.
+        </p>
+        <div class="row">
+          <button id="podcast-toggle" data-focus>Podcast mode: off</button>
+          <button id="podcast-vol-down" data-focus>Bed volume −</button>
+          <button id="podcast-vol-up" data-focus>Bed volume +</button>
+          <span id="podcast-state" class="field-state"></span>
+        </div>
+      </div>
     </div>
 
     <div class="row setup-footer">
@@ -227,7 +254,7 @@
 
   <!-- ============ Display card overlay (display.* commands) ============ -->
   <section id="card-overlay" class="card-overlay hidden">
-    <div class="card">
+    <div class="card" id="card-box">
       <h2 id="card-title" class="card-title hidden"></h2>
       <img id="card-image" class="card-image hidden" alt="">
       <p id="card-text" class="card-text hidden"></p>
@@ -256,6 +283,7 @@
   <script src="js/keyboard.js"></script>
   <script src="js/avatar.js"></script>
   <script src="js/voice.js"></script>
+  <script src="js/podcast.js"></script>
   <script src="js/executor.js"></script>
   <script src="js/link-session.js"></script>
   <script src="js/service.js"></script>

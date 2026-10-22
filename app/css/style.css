@@ -273,6 +273,10 @@ textarea.focused {
 .voice-status { font-size: 26px; color: #9fb2d8; min-height: 34px; }
 .voice-last-event { color: #9fb2d8 !important; }
 
+/* Podcast Mode: live indicator on the ambient screen + footer buttons */
+.podcast-indicator { font-size: 26px; color: #9fe8bb; }
+.footer-buttons { display: flex; gap: 20px; }
+
 /* ---------- setup screen ---------- */
 #screen-setup { overflow-y: auto; }
 .setup-title { font-size: 56px; margin: 0 0 12px; }
@@ -333,3 +337,6 @@ textarea.focused {
 .card-caption { font-size: 30px; color: #9fb2d8; margin: 20px 0 0; }
 .card-lines { font-size: 38px; line-height: 1.5; margin: 0; padding-left: 36px; }
 .card-dismiss { font-size: 24px; color: #5f719c; margin-top: 32px; }
+/* Podcast Mode: a card whose text reads like a permission/approval
+   request is highlighted (amber border and warm background). */
+.card.card-approval { border-color: #ffb454; background: #2e2110; }

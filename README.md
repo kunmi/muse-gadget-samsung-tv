@@ -172,6 +172,53 @@ non-partner app. So `app/js/voice.js` is built as a probe:
   the exact refusal. One test on a real TV will show what the platform
   actually grants; until then this is **unverified on real hardware**.
 
+### Podcast mode
+
+A toggle (setup card 6 · Podcast mode, or the **Podcast mode** button
+on the ambient screen; persisted, with a "Podcast mode on" indicator
+while active) turns the TV into a narrated ambient briefing channel:
+
+- **Ambient bed.** A soft pad is *generated* with the Web Audio API —
+  detuned oscillators through a slowly drifting low-pass filter,
+  cycling a four-chord progression. No audio files, no samples, no
+  licensed music; it works offline and under TizenBrew. The bed has
+  its own volume setting and **ducks** automatically while narration
+  speaks. TV autoplay rules apply honestly: the bed starts when you
+  enable the mode, or — if the mode was left on — at the first key
+  press or click after boot; until then the setup card says it is
+  waiting, rather than pretending to play.
+- **Narration.** Everything is spoken through the same speech module
+  (and its 500-character cap), and Bloop reacts through the usual
+  hooks — lip-flapping while narration speaks, busy while work runs:
+  - *Messages:* `display.text` / `display.briefing` content is read
+    aloud on arrival. This is deliberately separate from card 4's
+    "Read messages aloud" switch: in Podcast Mode, messages narrate
+    regardless of that preference. Coordination runs through the
+    command result, so a message the executor already spoke
+    (`speak: true`, or read-aloud) is never spoken twice.
+  - *Activity:* short lines for the gadget's own life — "Connected
+    to Muse", "Disconnected from Muse", "Working on it", "Done" —
+    rate-limited so the TV never chatters (a minimum gap between
+    activity lines, "working" at most once in a while and only
+    paired with its outcome, connect/disconnect deduplicated).
+    Housekeeping commands (volume, health checks) are never narrated.
+  - *Approval-looking messages:* the gadget protocol carries no
+    approval flag, so a conservative text heuristic (an approval
+    keyword **and** a request marker must both be present) flags a
+    message that reads like a permission request; it is narrated
+    with an "Attention." prefix and its card is highlighted.
+- **The hard limit:** Podcast Mode can only narrate what actually
+  reaches the TV — messages and briefings Muse sends to the gadget,
+  plus the app's own activity. Approval cards that exist only in the
+  Muse app on a phone are never sent here and cannot be narrated.
+
+If the TV has no speech voices, the bed still plays and narration
+quietly does nothing; with no Web Audio, narration still works
+without the bed. Like everything else on-TV, Podcast Mode is
+**unverified on real hardware** — the bed's sound, the ducking, and
+whether Tizen's runtime lets a sideloaded app keep a Web Audio
+context running are all first-run questions.
+
 Ask Muse things like:
 
 > Put a note on the living-room TV: "Dinner is at 7."
@@ -316,6 +363,12 @@ up on a network you trust, as the SDK's own README advises.
   registration and privilege-refusal surfacing, the app-state mapping,
   content-context building, dictated text routed to the composer draft
   and never sent, listen() outcomes);
+- Podcast Mode against a fake Web Audio graph and speech module
+  (toggle/volume persistence, bed start/chord cycling/teardown,
+  ducking under speech, suspended-context reporting, message
+  narration coordinated with the executor's spoken flag, the approval
+  heuristic, activity rate limits, and both unavailable halves:
+  no Web Audio → narration works, no TTS voices → the bed plays);
 - an **interop run of the real JS link client against the SDK's own Python
   implementation** (handshake, register, invoke/result, chat, unpair) when
   the SDK checkout and Python `cryptography` are available — it skips
@@ -329,7 +382,9 @@ actually sounding on a retail TV (whether the S95F-class runtime exposes
 voices is a hardware question), a real Bluetooth keyboard paired with
 the TV, Bloop's animation as rendered by a real TV's web runtime, and
 the whole voice-input experiment (whether a sideloaded app is granted
-the VoiceInteraction API and any dictated text at all).
+the VoiceInteraction API and any dictated text at all), and Podcast
+Mode on a real TV (the generated bed through TV speakers, ducking
+under real TTS, Web Audio context behaviour in the Tizen runtime).
 
 ## Layout
 

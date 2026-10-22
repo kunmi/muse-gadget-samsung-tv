@@ -51,6 +51,7 @@
   // events — service state, command execution, composer sends, speech —
   // and mount() mirrors the resolved state onto the ambient screen.
   var avatarCtl = MG.avatar.create();
+  var podcastCtl = null; // created after speechCtl, which it narrates through
 
   /* ---------- voice input (experiment) ---------- */
   // A probe of Samsung's VoiceInteraction API (voice.js): it registers
@@ -88,7 +89,25 @@
     Utterance: typeof window.SpeechSynthesisUtterance !== 'undefined'
       ? window.SpeechSynthesisUtterance : null,
     storage: storage,
-    onSpeakingChange: function (speakingNow) { avatarCtl.setSpeaking(speakingNow); },
+    onSpeakingChange: function (speakingNow) {
+      // One hook, two listeners: Bloop lip-flaps, and Podcast Mode
+      // ducks its ambient bed under the narration.
+      avatarCtl.setSpeaking(speakingNow);
+      if (podcastCtl) podcastCtl.setSpeaking(speakingNow);
+    },
+  });
+
+  /* ---------- Podcast Mode ---------- */
+  // Narrated ambient briefing channel (podcast.js): a generative Web
+  // Audio bed plus speech-module narration of incoming messages and
+  // the gadget's own activity, behind a persisted toggle (setup card 6
+  // and the ambient screen's Podcast button).
+  podcastCtl = MG.podcast.create({
+    audioContextCtor: typeof window.AudioContext !== 'undefined'
+      ? window.AudioContext
+      : (typeof window.webkitAudioContext !== 'undefined' ? window.webkitAudioContext : null),
+    speech: speechCtl,
+    storage: storage,
   });
 
   function el(id) { return document.getElementById(id); }
@@ -110,6 +129,16 @@
     el('card-image').classList.add('hidden');
     el('card-lines').classList.add('hidden');
     el('card-caption').classList.add('hidden');
+    el('card-box').classList.remove('card-approval');
+  }
+  // Podcast Mode: a message that reads like a permission/approval
+  // request gets a highlighted card (its narration is emphasised too —
+  // see podcast.js). The protocol carries no approval flag; this is a
+  // conservative text heuristic, applied only while the mode is on.
+  function markApproval(text) {
+    if (podcastCtl && podcastCtl.isEnabled() && podcastCtl.isApprovalText(text)) {
+      el('card-box').classList.add('card-approval');
+    }
   }
   var ui = {
     showText: function (card) {
@@ -120,6 +149,7 @@
       }
       el('card-text').textContent = card.text;
       el('card-text').classList.remove('hidden');
+      markApproval((card.title ? card.title + '. ' : '') + card.text);
       showCard();
     },
     showImage: function (card) {
@@ -131,12 +161,14 @@
         el('card-caption').textContent = card.caption;
         el('card-caption').classList.remove('hidden');
       }
+      markApproval(card.caption || '');
       showCard();
     },
     showBriefing: function (card) {
       resetCard();
       el('card-title').textContent = card.title;
       el('card-title').classList.remove('hidden');
+      markApproval(card.title + '. ' + card.lines.join('. '));
       var list = el('card-lines');
       list.innerHTML = '';
       card.lines.forEach(function (line) {
@@ -162,22 +194,36 @@
   var executor = null;
   var service = null;
   // Bloop works while a link command executes: display.* arrivals also
-  // earn a wave once the command completes (avatar.js decides).
+  // earn a wave once the command completes (avatar.js decides). Podcast
+  // Mode narrates here too: "working"/outcome activity lines for the
+  // display commands only (housekeeping like volume/health stays
+  // silent), and message narration via considerMessage, which defers
+  // to the executor result's spoken flag so nothing is spoken twice.
+  var NARRATED_COMMANDS = {
+    'display.text': true, 'display.image': true, 'display.briefing': true,
+  };
   function runCommandTracked(command, params, timeoutMs) {
     avatarCtl.commandStarted(command);
-    function done() { avatarCtl.commandFinished(command); }
+    if (NARRATED_COMMANDS[command]) podcastCtl.activity('working');
+    function done(result, failed) {
+      avatarCtl.commandFinished(command);
+      if (NARRATED_COMMANDS[command]) {
+        podcastCtl.considerMessage(command, params, result);
+        podcastCtl.activity(failed || (result && result.ok === false) ? 'failed' : 'done');
+      }
+    }
     try {
       var result = executor.run(command, params, timeoutMs);
       if (result && typeof result.then === 'function') {
         return result.then(
-          function (value) { done(); return value; },
-          function (err) { done(); throw err; }
+          function (value) { done(value, false); return value; },
+          function (err) { done(null, true); throw err; }
         );
       }
-      done();
+      done(result, false);
       return result;
     } catch (err) {
-      done();
+      done(null, true);
       throw err;
     }
   }
@@ -199,6 +245,8 @@
       },
       onState: function (state, detail) {
         avatarCtl.serviceState(state);
+        if (state === 'registered') podcastCtl.activity('connected');
+        else if (state === 'waiting' || state === 'unpaired') podcastCtl.activity('disconnected');
         if (state === 'unpaired') {
           setPill('Not paired', 'status-warn');
           renderPairingState();
@@ -674,11 +722,45 @@
   el('voice-listen').addEventListener('click', function () { voiceCtl.listen(); });
   el('voice-test').addEventListener('click', function () { voiceCtl.listen(); });
 
+  /* ---------- Podcast Mode settings ---------- */
+  function renderPodcastState() {
+    var on = podcastCtl.isEnabled();
+    var label = 'Podcast mode: ' + (on ? 'on' : 'off');
+    el('podcast-toggle').textContent = label;
+    el('podcast-toggle-main').textContent = label;
+    el('podcast-indicator').classList.toggle('hidden', !on);
+    var bed = podcastCtl.audioState();
+    var bedText = bed === 'running' ? 'ambient bed playing'
+      : bed === 'suspended' ? 'ambient bed waiting for a key press (TV autoplay rules)'
+      : bed === 'unavailable' ? 'no Web Audio in this runtime — narration only'
+      : 'ambient bed off';
+    el('podcast-state').textContent = on
+      ? 'On — narrating messages and activity. Bed volume ' +
+        Math.round(podcastCtl.getBedVolume() / MG.podcast.MAX_BED_VOLUME * 100) + '%: ' + bedText + '.'
+      : 'Off. Turning it on starts the ambient bed and narrates incoming messages.';
+    el('podcast-state').classList.toggle('error', on && bed === 'unavailable');
+  }
+  function togglePodcast() {
+    podcastCtl.setEnabled(!podcastCtl.isEnabled());
+    renderPodcastState();
+  }
+  el('podcast-toggle').addEventListener('click', togglePodcast);
+  el('podcast-toggle-main').addEventListener('click', togglePodcast);
+  el('podcast-vol-down').addEventListener('click', function () {
+    podcastCtl.setBedVolume(podcastCtl.getBedVolume() - 0.05);
+    renderPodcastState();
+  });
+  el('podcast-vol-up').addEventListener('click', function () {
+    podcastCtl.setBedVolume(podcastCtl.getBedVolume() + 0.05);
+    renderPodcastState();
+  });
+
   el('open-settings').addEventListener('click', function () {
     renderSdkTokenState();
     renderPairingState();
     renderSpeechState();
     renderVoiceState();
+    renderPodcastState();
     showScreen('setup');
   });
   el('setup-back').addEventListener('click', function () { showScreen('main'); });
@@ -690,8 +772,10 @@
     if (!text) return;
     // Bloop shows "busy" from the send until the send's result returns.
     avatarCtl.beginWork();
+    podcastCtl.activity('working');
     service.sendChat(text).then(function (result) {
       avatarCtl.endWork();
+      podcastCtl.activity(result.ok ? 'done' : 'failed');
       if (result.ok) {
         input.value = '';
         toast('Sent to Muse.');
@@ -700,6 +784,7 @@
       }
     }).catch(function (err) {
       avatarCtl.endWork();
+      podcastCtl.activity('failed');
       toast(err.message || 'Not connected to Muse.');
     });
   }
@@ -714,6 +799,12 @@
   renderSpeechState();
   voiceCtl.start();
   renderVoiceState();
+  renderPodcastState();
+  podcastCtl.start();
+  // TV autoplay rules: if Podcast Mode was left on, its bed may start
+  // suspended; the first key press or click resumes it.
+  document.addEventListener('keydown', function () { podcastCtl.notifyInteraction(); });
+  document.addEventListener('click', function () { podcastCtl.notifyInteraction(); });
   showScreen(store.getPairing() ? 'main' : 'setup');
   service.start();
 })();
